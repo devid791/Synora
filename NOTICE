@@ -1,0 +1,19 @@
+Synora-owned source and documentation: MIT, copyright 2026 Davide Zenati.
+
+Generated Codex protocol material under src/protocol/codex-0.153.4 and
+docs/protocol/codex-0.153.4 derives from OpenAI Codex. Preserve its generated
+headers and THIRD_PARTY_CODEX_LICENSE (Apache License 2.0).
+
+Codex runtime packages are downloaded separately from the pinned official
+release. Their licensing and notices are preserved in native/licenses/core.
+The MIT license in this repository does not replace those upstream licenses.
+
+The native web integration has provenance in native/web/PROVENANCE.md.
+libcurl and zlib licenses are retained by the native packaging process.
+
+Electron, React, xterm.js, Lucide, node-pty and all other dependencies retain
+their respective licenses. npm's lockfile pins their dependency versions;
+distributors must retain the notices required by the packages they ship.
+
+No model weights, accounts, subscriptions or rights to third-party services
+are included. Third-party product names identify compatibility, not endorsement.

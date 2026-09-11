@@ -1,0 +1,16 @@
+node_modules/
+.cache/
+dist/
+out/
+release/
+test-results/
+*.log
+.env*
+!.env.example
+.DS_Store
+.ops/
+.evidence/
+*.key
+*.p12
+*.pfx
+*.keychain-db

@@ -1,0 +1,76 @@
+{
+  "linux-x64": {
+    "bin/codex": [
+      258659424,
+      "56ef98ab4032d317ab26e9b5e5a175650717351edb16ed9cde0cb6d1734d62da"
+    ],
+    "bin/codex-code-mode-host": [
+      69460032,
+      "3e85d67471825f73d02ff5f7e047ca1f6ca8caa3f59e4c6e8d9ca6ca7302cb45"
+    ],
+    "codex-package.json": [
+      205,
+      "43f8735a93a7947c6dc082c550d2ff2d795fccfd1c7eb27c93aa91cbead1e3f4"
+    ],
+    "codex-path/rg": [
+      5408904,
+      "e62198eb19b136b88c330af83647b5a962cb99b6b1f066758568f12de1974849"
+    ],
+    "codex-resources/bwrap": [
+      529776,
+      "77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c"
+    ],
+    "codex-resources/zsh/bin/zsh": [
+      898480,
+      "67faaaa89242c4a332e16e508a1977cffc24bf7fca31d4411cdfd101f3831ef3"
+    ]
+  },
+  "darwin-arm64": {
+    "bin/codex": [
+      220584000,
+      "b973d440acac501fd2594a43e7ca9ce41e0a65b9dfb28d0d7a7837c99e1261e3"
+    ],
+    "bin/codex-code-mode-host": [
+      62767552,
+      "d8a2222e017342718d16a5dbe092921c628961f812f62f42036b8d960e1ffe56"
+    ],
+    "codex-package.json": [
+      200,
+      "d9ca6b160a46bf8e06748df83ccadb91418ded2d1c35045518b7305f866c9a54"
+    ],
+    "codex-path/rg": [
+      4030432,
+      "3969d598288585478bd9b2fd6c9f7e120b711cf96c5a03844d0197ea6abec346"
+    ],
+    "codex-resources/zsh/bin/zsh": [
+      754208,
+      "712ebaa416a7505fe6719ba99440ae3125423ce46d42d0174963553d81f3f8f1"
+    ]
+  },
+  "win32-x64": {
+    "bin/codex-code-mode-host.exe": [
+      72475952,
+      "deaebc21f354f151fcebeac46e12c6e8c4ef75ee448e25e3577502074e04b8d9"
+    ],
+    "bin/codex.exe": [
+      295408944,
+      "444a3f0008050605cae73cd9b7a2dcac61294062dfaab56dd20430fd6498518b"
+    ],
+    "codex-package.json": [
+      215,
+      "58aa5bc41fd09632f76a1bf63a711ab0fe18c80630bcd71538bfe40e4db1b502"
+    ],
+    "codex-path/rg.exe": [
+      4218880,
+      "14231169855ec5205cf5a1b6f1db358ff4aed4247c86b69ce8aae647c77f6680"
+    ],
+    "codex-resources/codex-command-runner.exe": [
+      8204592,
+      "3eb267dc1f0d1d80efeacc26a211f26ed0f414466d32a2aa7304a8a0beec170c"
+    ],
+    "codex-resources/codex-windows-sandbox-setup.exe": [
+      15413040,
+      "0c3eeb7cee8d2bc4c8644def3c818e8b06760979572dcedc919c38d0f38f64c4"
+    ]
+  }
+}

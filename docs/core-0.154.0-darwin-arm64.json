@@ -1,0 +1,29 @@
+{
+  "version": "0.154.0",
+  "target": "aarch64-apple-darwin",
+  "file": "codex-package-aarch64-apple-darwin.tar.gz",
+  "size": 112327068,
+  "sha256": "427ca74c027049e0cd1a330d611e7f8d1fe0f1eb6a6d85ac16f61bcf2cb4a485",
+  "files": {
+    "bin/codex": [
+      222655232,
+      "4f85982624b3898c8991cb80c0981b2aa71070e3537046c9a95950318a95afcc"
+    ],
+    "bin/codex-code-mode-host": [
+      62786144,
+      "426d73aaeb2aeef45e98b5add99e8ef9594a31673d281489bb2cb06b38c27423"
+    ],
+    "codex-package.json": [
+      200,
+      "6bace96c38debc466a94cd71d48464df1b1dc27a4ac75d8cebbcb2b6a3a6540c"
+    ],
+    "codex-path/rg": [
+      4030432,
+      "6bbb665c5a40785e74c7ccf1c2e606efa7e70b09540c1e00787c3f88827e668d"
+    ],
+    "codex-resources/zsh/bin/zsh": [
+      754208,
+      "25649b16e12a7b1b26686a9553d8a141866ee445319fddb5263d57784f0fd10b"
+    ]
+  }
+}

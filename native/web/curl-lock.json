@@ -1,0 +1,9 @@
+{
+  "version": "8.22.0",
+  "file": "curl-8.22.0.tar.gz",
+  "size": 4408679,
+  "sha256": "d54dd598bf05927a726deb38df31c6a255ba83ff1de57c5d1464dac3ed8f44a1",
+  "url": "https://github.com/curl/curl/releases/download/curl-8_22_0/curl-8.22.0.tar.gz",
+  "provenance": "https://api.github.com/repos/curl/curl/releases/tags/curl-8_22_0",
+  "verifiedAt": "2026-09-09"
+}

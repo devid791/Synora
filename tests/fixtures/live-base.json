@@ -1,0 +1,50 @@
+{
+  "thread": {
+    "id": "fixture-thread",
+    "extra": null,
+    "sessionId": "fixture-session",
+    "forkedFromId": null,
+    "parentThreadId": null,
+    "preview": "",
+    "ephemeral": false,
+    "section": null,
+    "sectionEnteredAt": null,
+    "projectId": null,
+    "historyMode": "paginated",
+    "modelProvider": "synora_axiom",
+    "model": "qwen3.8-27b-nvfp4",
+    "reasoningEffort": "ultra-fast",
+    "createdAt": 1788908303,
+    "updatedAt": 1788908303,
+    "recencyAt": 1788908303,
+    "status": {
+      "type": "idle"
+    },
+    "path": null,
+    "cwd": "/synora-fixture",
+    "cliVersion": "0.153.4",
+    "source": "vscode",
+    "canAcceptDirectInput": true,
+    "threadSource": null,
+    "agentNickname": null,
+    "agentRole": null,
+    "gitInfo": null,
+    "name": null,
+    "turns": []
+  },
+  "command": {
+    "type": "commandExecution",
+    "id": "fixture-tool-item",
+    "pluginId": null,
+    "scriptPath": null,
+    "command": "/bin/bash -lc 'cat qualification.txt'",
+    "cwd": "/synora-fixture",
+    "processId": "24482",
+    "source": "unifiedExecStartup",
+    "status": "completed",
+    "commandActions": [],
+    "aggregatedOutput": "SYNORA_FILE_BEFORE\n",
+    "exitCode": 0,
+    "durationMs": 0
+  }
+}

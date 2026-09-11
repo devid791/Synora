@@ -1,0 +1,132 @@
+.orchestration-panel {
+  min-width: 0;
+  max-width: 100%;
+  padding: 14px;
+  border: 1px solid var(--line, #303238);
+  border-radius: 10px;
+  background: var(--raised, #202226);
+  overflow-wrap: anywhere;
+}
+.orchestration-panel .orchestration-scroll {
+  max-height: min(65vh, 44rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 4px;
+}
+.orchestration-panel fieldset {
+  min-width: 0;
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid var(--line, #303238);
+  border-radius: 8px;
+}
+.orchestration-panel legend {
+  padding: 0 5px;
+}
+.orchestration-panel label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.orchestration-panel .orchestration-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 12px;
+}
+.orchestration-panel input:not([type="checkbox"]):not([type="radio"]),
+.orchestration-panel select,
+.orchestration-panel textarea {
+  width: 100%;
+  max-width: 100%;
+}
+.orchestration-panel .orchestration-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0;
+}
+.orchestration-panel .orchestration-check input {
+  flex-shrink: 0;
+}
+.orchestration-panel .orchestration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.orchestration-panel button {
+  max-width: 100%;
+  white-space: normal;
+}
+.orchestration-panel summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.orchestration-panel .orchestration-identity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 6px 12px;
+}
+.orchestration-panel dt {
+  color: var(--muted, #9ca4b3);
+}
+.orchestration-panel dd {
+  margin: 0;
+  min-width: 0;
+}
+.orchestration-panel .orchestration-pair {
+  display: contents;
+}
+.orchestration-panel .orchestration-approval-data {
+  max-height: 18rem;
+  overflow: auto;
+}
+.orchestration-panel .orchestration-check small {
+  display: block;
+}
+.orchestration-panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 18rem;
+  overflow: auto;
+}
+.orchestration-panel .orchestration-task {
+  border-top: 1px solid var(--line, #303238);
+  padding: 12px 0;
+}
+.orchestration-panel .orchestration-review {
+  min-width: 0;
+  margin: 12px 0;
+  padding: 0 12px;
+  border: 1px solid var(--line, #303238);
+  border-radius: 8px;
+}
+.orchestration-panel .orchestration-review-identity,
+.orchestration-panel .orchestration-revision {
+  max-height: 12rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.orchestration-panel .orchestration-review pre {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.orchestration-panel .orchestration-revision a {
+  color: var(--accent, #b9acff);
+  text-decoration: underline;
+}
+.orchestration-panel
+  :is(
+    summary,
+    .orchestration-scroll,
+    .orchestration-task,
+    .orchestration-revision,
+    .orchestration-revision a,
+    .orchestration-review pre,
+    .orchestration-review-identity
+  ):focus-visible {
+  outline: 2px solid var(--accent, #b9acff);
+  outline-offset: 2px;
+}

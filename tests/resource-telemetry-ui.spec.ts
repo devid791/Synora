@@ -1,0 +1,65 @@
+import { test, expect } from "@playwright/test";
+import { build } from "esbuild";
+import { readFile } from "node:fs/promises";
+let script: string, css: string;
+test.beforeAll(async () => {
+  script = (await build({ entryPoints: ["tests/fixtures/resource-telemetry-ui.tsx"], bundle: true, write: false,
+    platform: "browser", format: "iife", define: { "process.env.NODE_ENV": '"production"' } })).outputFiles[0].text;
+  css = (await readFile("src/renderer/style.css", "utf8")).replace(/^@import.*$/gm, "");
+});
+for (const [width, theme] of [[1440, "dark"], [390, "light"]] as const) test(`Measured orange meters and exact sources at ${width}px/${theme}`, async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
+  await page.clock.install();
+  await page.setViewportSize({ width, height: 1000 });
+  await page.setContent(`<html data-theme="${theme}"><body><div style="padding:16px" id="root"></div></body></html>`);
+  await page.addStyleTag({ content: css }); await page.addScriptTag({ content: script });
+  await expect(page.getByRole("meter", { name: "Local host RAM", exact: true })).toHaveAttribute("aria-valuenow", "75");
+  await expect(page.getByRole("meter", { name: "Context occupancy", exact: true })).toHaveAttribute("aria-valuenow", "25");
+  await expect(page.getByRole("meter", { name: "Axiom VRAM", exact: true })).toHaveAttribute("aria-valuenow", "75");
+  await expect(page.getByRole("meter", { name: "GPU utilization", exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-resource="Axiom VRAM"]')).toContainText("Last request");
+  await expect(page.locator('[data-resource="Axiom VRAM"]')).toContainText("not the sample time");
+  await expect(page.locator('[data-rate="decode"] .resource-value')).toHaveText("409.0 tok/s");
+  await expect(page.locator('[data-rate="prefill"] .resource-value')).toHaveText("2,000.0 tok/s");
+  await expect(page.locator(".resource-counters")).toContainText("450,000");
+  const fill = page.locator('[data-resource="Local host RAM"] .resource-fill');
+  await expect(fill).toHaveCSS("background-color", theme === "dark" ? "rgb(255, 150, 63)" : "rgb(182, 75, 8)");
+  await page.clock.fastForward(2000); await page.evaluate(() => (window as any).updateMemory(8));
+  await expect(page.getByRole("meter", { name: "Local host RAM", exact: true })).toHaveAttribute("aria-valuenow", "50");
+  await expect(page.locator(".resource-line-chart circle")).toHaveCount(2);
+  const bar = page.locator('[data-rate="decode"] .resource-rate-slot').last();
+  await bar.focus(); await expect(bar.locator(".resource-rate-tooltip")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: `test-results/resource-telemetry-${width}-${theme}.png`, fullPage: true });
+  expect(errors).toEqual([]);
+});
+test("Unavailable/stale, compaction and provider changes never fabricate utilization", async ({ page }) => {
+  await page.clock.install(); await page.setContent('<div id="root"></div>'); await page.addStyleTag({ content: css }); await page.addScriptTag({ content: script });
+  await expect(page.getByRole("meter", { name: "Axiom VRAM", exact: true })).toBeVisible();
+  await page.evaluate(() => { (window as any).failBackend = true; });
+  await page.clock.fastForward(9000);
+  await expect(page.locator('[data-resource="Local host RAM"]')).toContainText("Stale");
+  await expect(page.getByRole("meter", { name: "Axiom VRAM", exact: true })).toHaveCount(0);
+  await page.evaluate(() => (window as any).compact());
+  await expect(page.getByRole("meter", { name: "Context occupancy", exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-resource="Context occupancy"]')).toContainText("Waiting for updated usage after compaction.");
+  await page.evaluate(() => (window as any).overflow());
+  await expect(page.getByRole("meter", { name: "Context occupancy", exact: true })).toHaveAttribute("aria-valuenow", "100");
+  await expect(page.locator('[data-resource="Context occupancy"]')).toContainText("110.0% used");
+  await page.evaluate(() => { (window as any).failBackend = false; (window as any).switchProvider(); });
+  await expect(page.getByRole("meter", { name: "Axiom VRAM", exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-resource="GPU utilization"]')).toContainText("Not applicable");
+  await expect(page.locator('[data-rate="decode"]')).toContainText("No measurements yet");
+  await page.evaluate(() => (window as any).clearMemory());
+  await expect(page.getByRole("meter", { name: "Local host RAM", exact: true })).toHaveCount(0);
+});
+test("Polling pauses when hidden and uses only the read-only backend operation", async ({ page }) => {
+  await page.clock.install(); await page.setContent('<div id="root"></div>'); await page.addScriptTag({ content: script });
+  await expect.poll(() => page.evaluate(() => (window as any).calls)).toBe(1);
+  await page.evaluate(() => Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" }));
+  await page.clock.fastForward(20000);
+  expect(await page.evaluate(() => (window as any).calls)).toBe(1);
+  await page.evaluate(() => Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" }));
+  await page.clock.fastForward(2000);
+  await expect.poll(() => page.evaluate(() => (window as any).calls)).toBe(2);
+});

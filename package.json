@@ -1,0 +1,102 @@
+{
+  "name": "synora-harness-desktop",
+  "version": "0.1.0-foundation.2",
+  "private": true,
+  "author": {
+    "name": "Synora"
+  },
+  "license": "MIT",
+  "homepage": "https://synora-ai.org/",
+  "repository": "https://github.com/devid791/Synora",
+  "type": "module",
+  "description": "Synora local desktop foundation",
+  "main": "dist/main.cjs",
+  "desktopName": "synora-harness-desktop.desktop",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/prepare-native.mjs && node scripts/brand.mjs && node scripts/build.mjs",
+    "build:web": "node scripts/prepare-native.mjs && node scripts/brand.mjs && node scripts/build-web.mjs",
+    "start:web": "node scripts/prepare-native.mjs && node out/web/server.mjs",
+    "test:web": "playwright test --config playwright.web.config.ts",
+    "start": "electron .",
+    "pretest": "node scripts/prepare-native.mjs",
+    "test": "tsx --test tests/*.test.ts tests/native-preparation.test.mjs",
+    "test:desktop": "playwright test",
+    "test:desktop:linux": "xvfb-run -a -s '-screen 0 1600x1100x24 -extension GLX' playwright test",
+    "pretest:quality:web": "npm run build:web",
+    "test:quality:web": "playwright test --config playwright.quality.config.ts",
+    "test:quality:desktop": "playwright test --config playwright.quality-desktop.config.ts",
+    "test:quality:desktop:linux": "xvfb-run -a -s '-screen 0 1800x1200x24 -extension GLX' playwright test --config playwright.quality-desktop.config.ts",
+    "package:linux": "npm run build && electron-builder --linux dir deb",
+    "package:mac": "npm run build && electron-builder --mac dmg zip",
+    "package:win": "npm run build && electron-builder --win nsis --config.npmRebuild=false"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "0.10.0",
+    "@xterm/xterm": "5.5.0",
+    "lucide-react": "1.43.0",
+    "node-pty": "1.1.0",
+    "playwright-core": "1.63.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tar": "7.5.22",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@resvg/resvg-js": "2.6.2",
+    "@types/node": "24.3.0",
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
+    "electron": "44.3.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "prettier": "3.6.2",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "vite": "8.2.2"
+  },
+  "build": {
+    "appId": "org.synora.harness.desktop",
+    "afterPack": "scripts/after-pack.mjs",
+    "icon": "public/brand/icon.png",
+    "productName": "Synora Harness Desktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ],
+    "linux": {
+      "syncDesktopName": true,
+      "target": [
+        "dir",
+        "deb"
+      ],
+      "category": "Development",
+      "maintainer": "Synora"
+    },
+    "mac": {
+      "identity": "-",
+      "notarize": false,
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "npmRebuild": true,
+    "publish": null
+  }
+}

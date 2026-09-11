@@ -1,0 +1,22 @@
+import { test, expect } from "@playwright/test";
+import { build } from "esbuild";
+import { readFile } from "node:fs/promises";
+test("Dynamic GPU cards update identity/capacity, remove missing devices and never invent unknown utilization", async ({ page }) => {
+  const code = (await build({ entryPoints: ["tests/fixtures/gpu-telemetry-ui.tsx"], bundle: true, write: false, platform: "browser", format: "iife", define: { "process.env.NODE_ENV": '"production"' } })).outputFiles[0].text;
+  await page.setViewportSize({ width: 390, height: 900 }); await page.setContent('<div style="padding:16px" id="root"></div>');
+  await page.addStyleTag({ content: (await readFile("src/renderer/style.css", "utf8")).replace(/^@import.*$/gm, "") }); await page.addScriptTag({ content: code });
+  const device = (id: string, capacity: number, utilization: number | null) => ({ id, identity: "device", name: `GPU ${id}`, vendor: "nvidia", pciBusId: "0000:01:00.0", source: "nvidia-smi", utilizationPercent: utilization, memoryTotalBytes: capacity * 1024 ** 3, memoryUsedBytes: 8 * 1024 ** 3, temperatureCelsius: 40 });
+  await expect(page.getByText("No GPU detected", { exact: true })).toBeVisible();
+  await page.evaluate(devices => (window as any).sample(devices), [device("A", 16, 0), device("B", 32, null)]);
+  const a = page.locator('[data-gpu-id="A"]'), b = page.locator('[data-gpu-id="B"]');
+  await expect(a.getByRole("meter", { name: "GPU utilization", exact: true })).toHaveAttribute("aria-valuenow", "0");
+  await expect(b.getByRole("meter", { name: "GPU utilization", exact: true })).toHaveCount(0);
+  await expect(b).toContainText("Unavailable");
+  await page.evaluate(devices => (window as any).sample(devices), [device("B", 32, 50), device("C", 64, 75)]);
+  await expect(a).toHaveCount(0); const c = page.locator('[data-gpu-id="C"]'); await expect(c).toContainText("64.00 GiB");
+  await expect(c.getByRole("meter", { name: "VRAM", exact: true })).toHaveAttribute("aria-valuenow", "12.5");
+  await page.evaluate(() => (window as any).stale()); await expect(c).toContainText("Stale");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.evaluate(() => (window as any).offline()); await expect(page.locator("[data-gpu-id]")).toHaveCount(0);
+  await expect(page.getByText("Collector unavailable", { exact: true })).toBeVisible();
+});

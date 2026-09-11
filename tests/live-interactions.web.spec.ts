@@ -1,0 +1,40 @@
+import {test,expect} from '@playwright/test';
+import {mkdtemp,mkdir,writeFile} from 'node:fs/promises';
+import {join,resolve} from 'node:path';
+import {tmpdir} from 'node:os';
+import {startWebService} from '../src/web/server';
+test('Actual UI: Plan question and Execute permission denial complete through the same Core session',async({page})=>{
+  const dir=await mkdtemp(join(tmpdir(),'synora-live-operator-ui-'));const cwd=join(dir,'workspace');await mkdir(cwd);
+  const server=await startWebService({storePath:join(dir,'state.sqlite'),assets:resolve('out/web/ui')});
+  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+  const nav=(name:string)=>page.getByRole('button',{name,exact:true}).click();
+  try {
+    await page.setViewportSize({width:900,height:900});await page.goto(server.url);
+    await nav('Add workspace');await page.getByLabel('Service folder').fill(cwd);await nav('Open folder');
+    await nav('Models & accounts');await nav('Add configuration');
+    await page.getByLabel('Configuration ID').fill('live-axiom');await page.getByLabel('Configuration name').fill('Live Axiom operator qualification');
+    await page.getByLabel('Configuration endpoint').fill(process.env.SYNORA_TEST_ENDPOINT!);await page.getByLabel('Enable configuration').check();await nav('Save configuration');
+    await nav('Settings');await page.getByLabel('Engine provider').selectOption('live-axiom');await nav('Read live model catalog');await nav('Use live Axiom');await nav('Workspace');
+    await page.getByLabel('Collaboration mode').selectOption('plan');
+    await page.getByLabel('Message',{exact:true}).fill('Use request_user_input to ask the operator to choose BLUE or GREEN as a qualification marker. Wait for the answer, then reply with only the chosen marker. No other tools.');await nav('Send message');
+    await expect(page.getByRole('form',{name:'Model question'})).toBeVisible({timeout:90000});
+    await expect(page.getByLabel('Collaboration mode')).toBeDisabled();
+    const asked=server.service.engine.snapshot();expect(asked.questions).toHaveLength(1);
+    await page.getByRole('radio',{name:/^BLUE/i}).check();
+    await page.screenshot({path:'test-results/live-interactions-web/actual-question.png'});
+    await nav('Send answer');await expect.poll(()=>server.service.engine.snapshot().status,{timeout:60000}).toBe('completed');
+    const plan=server.service.engine.snapshot();expect(plan.questions).toEqual([]);await expect(page.locator('.message.assistant').last()).toContainText('BLUE');
+    await page.getByLabel('Collaboration mode').selectOption('default');await page.setViewportSize({width:390,height:844});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+    await page.getByLabel('Message',{exact:true}).fill('Use request_permissions to request network access for this turn as an operator qualification. Do not run any command, access any URL or modify any file. Wait for operator response; if denied reply PERMISSION_DENIED and finish without retry.');await nav('Send message');
+    await expect(page.getByRole('button',{name:'Approve for this turn'})).toBeVisible({timeout:90000});
+    const requested=server.service.engine.snapshot();expect(requested.approval).not.toBeNull();
+    await page.screenshot({path:'test-results/live-interactions-web/actual-permission-mobile.png'});
+    await nav('Decline');await expect.poll(()=>server.service.engine.snapshot().status,{timeout:60000}).toBe('completed');
+    const denied=server.service.engine.snapshot();expect(denied.threadId).toBe(plan.threadId);expect(denied.sessionId).toBe(plan.sessionId);expect(denied.approval).toBeNull();
+    await expect(page.locator('.message.assistant').last()).toContainText('PERMISSION_DENIED');
+    await expect(page.getByLabel('Collaboration mode')).toBeEnabled();expect(server.service.store.read().preferences.mode).toBe('default');
+    expect(denied.items.some(i=>i.type==='commandExecution'||i.type==='fileChange')).toBe(false);
+    expect(errors).toEqual([]);await mkdir('out/live-evidence',{recursive:true});await writeFile('out/live-evidence/operator-ui.json',JSON.stringify({dir,asked,plan,requested,denied,errors},null,2));
+  } finally{await page.goto('about:blank');await server.close();}
+});
