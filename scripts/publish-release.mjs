@@ -127,4 +127,9 @@ async function main() {
   console.log(`Published complete preview: ${published.html_url}`);
 }
 
-await main();
+await main().catch(error => {
+  // Emit only the controlled diagnostic, never request headers or credentials.
+  const message = String(error?.message ?? 'Release publication failed').replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+  console.error(`::error title=Release verification::${message}`);
+  process.exitCode = 1;
+});
