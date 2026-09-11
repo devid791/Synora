@@ -17,6 +17,19 @@ require their actual prerequisites and account grants.
 - [Synora website](https://synora-ai.org/) — presentation and download destination.
 - [Axiom Kernel](https://github.com/devid791/axiom-kernel).
 
+## Download the app
+
+The [desktop preview release](https://github.com/devid791/Synora/releases/tag/v0.1.0-foundation.2)
+provides the original macOS Apple-silicon ZIP, Windows x64 EXE and Linux AMD64 DEB,
+with `SHA256SUMS.txt` and `RELEASE-NOTES.txt`. Choose the installer assets, not
+GitHub's automatically generated source archives. The same files are available
+on the [website](https://synora-ai.org/#downloads).
+
+These are preview packages: macOS is not Apple-notarized, Windows is unsigned,
+and the existing cross-platform qualification limits remain. The release job
+verifies the original hashes before upload and GitHub's hashes before publishing;
+it does not rebuild the apps or change their QA status.
+
 ## Development quick start
 
 Use Node.js 22.19 or a compatible newer version and npm. Native runtime and

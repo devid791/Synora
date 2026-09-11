@@ -1,0 +1,27 @@
+name: Publish verified desktop downloads
+
+on:
+  push:
+    tags: ['v0.1.0-foundation.2']
+  workflow_dispatch:
+
+permissions: {}
+concurrency:
+  group: synora-foundation-2-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'devid791/Synora' && github.ref == 'refs/tags/v0.1.0-foundation.2'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Verify original packages and publish complete preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish-release.mjs
