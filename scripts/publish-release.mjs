@@ -60,7 +60,7 @@ async function main() {
     return;
   }
   assert.equal(process.env.GITHUB_REPOSITORY, repository);
-  assert.equal(process.env.GITHUB_REF, `refs/tags/${tag}`);
+  assert.ok([`refs/tags/${tag}`, 'refs/heads/main'].includes(process.env.GITHUB_REF));
   assert.ok(process.env.GH_TOKEN, 'GitHub Actions token required');
   const authorization = `Bearer ${process.env.GH_TOKEN}`;
   async function api(path, options = {}) {
@@ -76,6 +76,9 @@ async function main() {
     if (!response.ok) throw new Error(`GitHub API ${options.method || 'GET'} ${url.pathname}: HTTP ${response.status}`);
     return response.json();
   }
+  // A publication retry from main uses the existing, immutable release tag.
+  // Never create a tag implicitly from whichever branch happened to trigger it.
+  await api(`git/ref/tags/${tag}`);
   const releases = await api('releases?per_page=100');
   let release = releases.find(item => item.tag_name === tag);
   if (release && !release.draft) {
