@@ -270,7 +270,7 @@ Upstream App Server and plugin capabilities can change. Synora retains versioned
 
 ## Report a bug or contribute
 
-Use the Synora GitHub repository for source availability, documentation and issue reporting. Ideas, clear bug reports and help are welcome. The intended license for Synora-owned source is MIT; third-party components retain their own licenses and notices.
+Use the Synora GitHub repository for source code, documentation and issue reporting. Ideas, clear bug reports and help are welcome. Synora-owned source is licensed under MIT; third-party components retain their own licenses and notices.
 
 Include the app version, operating system and architecture, selected provider/model, a minimal sequence of actions, what you expected and what happened. If relevant, include the App Server version and whether the problem survives a normal restart. Label a test as blocked if it needs an account or service you do not have.
 
