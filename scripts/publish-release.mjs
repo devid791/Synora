@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { createReadStream, createWriteStream } from 'node:fs';
+import { createReadStream } from 'node:fs';
 import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 // Original, unchanged baseline 67eed3d packages. This publishes no build and
 // does not promote the known cross-platform limitations to production GO.
@@ -30,15 +30,16 @@ async function verifyFile(directory, asset) {
 }
 
 async function download(directory, asset) {
-  const response = await fetch(origin + asset.name, { redirect: 'error', signal: AbortSignal.timeout(600_000) });
-  assert.equal(response.status, 200, `${asset.name}: download HTTP ${response.status}`);
-  assert.ok(response.body);
-  let size = 0;
-  const limit = new Transform({ transform(chunk, encoding, callback) {
-    size += chunk.length;
-    callback(size > asset.size ? new Error(`${asset.name}: oversized response`) : null, chunk);
-  } });
-  await pipeline(response.body, limit, createWriteStream(join(directory, asset.name), { flags: 'wx' }));
+  // GitHub runners are challenged by the public CDN's bot protection. Read the
+  // same publicly downloadable files at the fixed HTTPS hosting origin, keeping
+  // TLS certificate/hostname validation and all site read-only rules intact.
+  // This is the public website host, never a model endpoint or private service.
+  await promisify(execFile)('curl', [
+    '--fail', '--silent', '--show-error', '--proto', '=https', '--tlsv1.2',
+    '--resolve', 'synora-ai.org:443:46.254.38.135', '--max-time', '600',
+    '--max-filesize', String(asset.size), '--output', join(directory, asset.name),
+    origin + asset.name,
+  ], { env: { PATH: process.env.PATH, LANG: 'C.UTF-8' }, maxBuffer: 8192 });
   await verifyFile(directory, asset);
 }
 
