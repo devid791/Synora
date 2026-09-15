@@ -77,7 +77,7 @@ export interface ComputerAdapter {
 export interface BrowserAutomation {
   inspect(
     id: string,
-  ): Promise<{ url: string; title: string; text: string; elements: unknown[] }>;
+  ): Promise<{ url: string; title: string; text: string; elements: unknown[]; viewport?: { width: number; height: number } }>;
   frame(id: string): Promise<BrowserFrame>;
   input(id: string, input: BrowserInput): Promise<void>;
 }

@@ -17,5 +17,6 @@ export const browserInspection = `(() => {
         bounds: {left:r.left, top:r.top, width:r.width, height:r.height} };
     }).filter(Boolean).slice(0,100);
   return { url: location.href, title: document.title, text: (document.body?.innerText || '').slice(0,20000),
+    viewport: {width: innerWidth, height: innerHeight},
     coordinates:'Use element.click.x and element.click.y directly for input.x/y. They are viewport click points, not box corners. Do not add half the width or height.', elements };
 })()`;

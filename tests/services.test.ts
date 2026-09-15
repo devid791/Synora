@@ -93,6 +93,24 @@ test("Clipboard uses only the typed host write, preserves state, rejects invalid
     assert.deepEqual(f.service.store.read(), before);
   } finally { await f.cleanup(); }
 });
+test("Control approval cannot be submitted from a different selected conversation", async ctx => {
+  const f=await setup();
+  try {
+    const chat=f.service.store.conversation(null), other=f.service.store.conversation(null);
+    const control=(f.service as unknown as {control:ComputerUse}).control;
+    const state={...control.snapshot(),grant:{conversationId:chat.id,browser:true,computer:false},
+      pending:{id:"owned-approval",conversationId:chat.id,title:"Allow control action",details:"Owned fixture"}};
+    const calls: unknown[]=[];
+    ctx.mock.method(control,"snapshot",()=>state);
+    ctx.mock.method(control,"approve",(id:string,allow:boolean)=>{calls.push({id,allow});return state;});
+    await f.service.api.preferences({selectedConversationId:other.id});
+    assert.equal((await f.service.api.controlApprove("owned-approval",true)).ok,false);
+    assert.deepEqual(calls,[]);
+    await f.service.api.preferences({selectedConversationId:chat.id});
+    assert.equal((await f.service.api.controlApprove("owned-approval",true)).ok,true);
+    assert.deepEqual(calls,[{id:"owned-approval",allow:true}]);
+  } finally {ctx.mock.restoreAll();await f.cleanup();}
+});
 test("Conversation permission operation preserves drafts/history/attachments and rejects busy or unknown targets", async () => {
   const f = await setup();
   try {

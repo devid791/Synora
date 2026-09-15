@@ -24,11 +24,16 @@ the real local screenshot and enforce the same observation, permission and
 freshness checks. Text mode never invents descriptions or silently sends an image
 instead; unavailable accessibility is reported with instructions to request one.
 This keeps readable work text-first without removing visual capabilities.
-The side panel shows the browser's current frame and a readable activity trail;
-for desktop apps it shows the **last observed window**, with a timestamp. This is
-not a continuous desktop video feed. Open full browser expands the same real tab
-when you need more room. Image tool results in chat render the actual screenshots
-too; text observations still update the real local preview.
+On desktop, the side panel embeds the **actual live browser page**, not a sequence
+of screenshots: navigation, typing, clicks and scrolling are visible directly,
+and you can interact with that same page. It resizes beside the chat. Open full
+browser expands the same tab when you need more room. Screenshots remain model
+observations, independent of presentation. The local web edition still uses an
+interactive frame preview of its service-owned browser, not a native child view.
+For external desktop apps the panel shows the **last observed window**, with a
+timestamp; it is not a continuous desktop video feed. A readable activity trail
+accompanies both. Native browser surfaces yield to overlapping menus and approval
+dialogs. Stop is always available, including when viewing another conversation.
 
 Example request after enabling the browser:
 
@@ -144,7 +149,9 @@ Host validation and no browser-origin access. It is never exposed as a public
 computer-control API. Input schemas reject executable scripts, unexpected fields,
 arbitrary keys and invalid coordinates. Actions need a fresh, one-use observation
 for the active conversation/turn. Changes of permission, navigation and
-cancellation invalidate observations. After two minutes, a locally recaptured
+cancellation invalidate observations. Browser observations and input use page
+CSS viewport coordinates even when the app UI or page is zoomed. Browser resizing
+invalidates old coordinates even within the two-minute window. After two minutes, a locally recaptured
 frame must have exactly the same pixels and dimensions before input is allowed;
 otherwise a new model observation is required. Concurrent actions are rejected.
 

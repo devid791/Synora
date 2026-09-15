@@ -45,6 +45,25 @@ const ownerTemplate: ControlOwner = {
   permission: "ask",
   mode: "default",
 };
+test("A newly resized browser rejects even a young observation before native input", async () => {
+  const f = fixture(); f.owner({...ownerTemplate, permission: "full"}); await enable(f.control);
+  const observed = text(await call(f.control, "browser_snapshot", {tab_id: "tab"}));
+  f.browser.frame = async () => ({...frame, width: 640});
+  await assert.rejects(call(f.control, "browser_action", {tab_id: "tab", observation_id: observed.observation_id,
+    input: {type: "click", x: 10, y: 10, button: "left"}}), /changed.*fresh snapshot/);
+  assert.equal(f.inputs(), 0);
+  const refreshed = text(await call(f.control, "browser_snapshot", {tab_id: "tab"}));
+  await call(f.control, "browser_action", {tab_id: "tab", observation_id: refreshed.observation_id,
+    input: {type: "click", x: 10, y: 10, button: "left"}});
+  assert.equal(f.inputs(), 1);
+});
+test("Browser text and captured frame must describe the same viewport", async () => {
+  const f = fixture(); f.owner({...ownerTemplate, permission: "full"}); await enable(f.control);
+  const inspect = f.browser.inspect!;
+  f.browser.inspect = async id => ({...await inspect(id), viewport: {width: 640, height: 600}});
+  await assert.rejects(call(f.control, "browser_snapshot", {tab_id: "tab"}), /viewport changed while capturing/);
+  assert.equal(f.inputs(), 0);
+});
 function fixture() {
   let owner: ControlOwner | null = { ...ownerTemplate },
     url = "https://example.com/",

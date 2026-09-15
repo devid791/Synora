@@ -132,6 +132,48 @@
   overflow-wrap: anywhere;
   font-size: 11px;
 }
+.computer-control-body:has(.native-browser-surface) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+.control-preview:has(.native-browser-surface) {
+  display: flex;
+  flex: 1;
+  min-height: 120px;
+  flex-direction: column;
+  border-radius: 8px 8px 0 0;
+}
+.native-browser-surface {
+  position: relative;
+  flex: 1;
+  min-height: 32px;
+  width: 100%;
+  background: var(--bg);
+}
+.control-preview:has(.native-browser-surface) .control-expand {
+  align-self: flex-end;
+}
+.control-preview:has(.native-browser-surface) .control-url {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+.computer-control-body:has(.native-browser-surface) .control-activity {
+  max-height: 120px;
+  overflow: auto;
+  flex-shrink: 0;
+}
+.computer-control-body:has(.control-consent) {
+  overflow: auto;
+  display: block;
+  flex: 1;
+}
+.computer-control-body:has(.control-consent) .control-preview {
+  display: none;
+}
 .control-url {
   padding: 0 10px 8px;
   font-size: 10px;
@@ -223,6 +265,10 @@
     min-height: 100px;
     border-left: 0;
     border-bottom: 1px solid var(--line);
+  }
+  .computer-control-panel:has(.control-consent) {
+    flex-basis: min(380px, 65dvh);
+    min-height: min(300px, 65dvh);
   }
 }
 @media (max-height: 640px) {

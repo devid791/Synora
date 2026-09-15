@@ -316,7 +316,13 @@ export class LocalService {
         if (this.engine.mode === "live") this.engine.invalidateIntegrations();
         return result;
       }),
-      controlApprove: ok((id, allow) => this.control.approve(id, allow)),
+      controlApprove: ok((id, allow) => {
+        const control = this.control.snapshot(), selected = this.store.read().preferences.selectedConversationId;
+        if (!control.pending || control.grant?.conversationId !== control.pending.conversationId ||
+            (selected && selected !== control.pending.conversationId))
+          throw Error("Return to the conversation requesting control approval");
+        return this.control.approve(id, allow);
+      }),
       controlStop: ok(() => this.control.stop()),
       orchestrationConfigure: ok((id, plan) =>
         this.configureOrchestration(id, plan),

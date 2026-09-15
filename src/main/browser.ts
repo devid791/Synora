@@ -162,18 +162,26 @@ export class Browser {
     // The live preview and model may observe the same hidden view concurrently.
     // Share only an in-flight capture, never a cached/stale observation.
     const pending = entry.capture ??= (async () => {
-      const image = await entry.view.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true });
+      const wc = entry.view.webContents;
+      // The page's CSS viewport is the common coordinate space for inspection,
+      // screenshot pixels and CDP input. App UI zoom and page zoom are separate;
+      // native view bounds belong only to layout, not to model coordinates.
+      const viewport = () => wc.executeJavaScript("({width:innerWidth,height:innerHeight})", false);
+      const before = await viewport();
+      const image = await wc.capturePage(undefined, { stayHidden: true, stayAwake: true });
       if (image.isEmpty()) throw Error("Browser frame is unavailable");
-      const bounds = entry.view.getBounds();
-      const normalized = image.resize({ width: bounds.width, height: bounds.height });
-      return { dataURL: `data:image/jpeg;base64,${normalized.toJPEG(80).toString("base64")}`, width: bounds.width, height: bounds.height };
+      const after = await viewport();
+      if (before.width !== after.width || before.height !== after.height || before.width <= 0 || before.height <= 0)
+        throw Error("Browser viewport changed while capturing; take a fresh snapshot");
+      const normalized = image.resize({ width: before.width, height: before.height });
+      return { dataURL: `data:image/jpeg;base64,${normalized.toJPEG(80).toString("base64")}`, width: before.width, height: before.height };
     })();
     try { return await pending; }
     finally { if (entry.capture === pending) entry.capture = undefined; }
   }
   async input(id: string, input: BrowserInput) {
     const wc = this.get(id).view.webContents;
-    // The side panel displays this isolated page through a live frame stream.
+    // The side panel displays this isolated page as an actual native child.
     // Electron sendInputEvent silently loses input when its native child view
     // is hidden. Fixed CDP Input commands deliver real DOM events in that page
     // without stealing focus from the chat or exposing a debugging TCP port.

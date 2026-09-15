@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Monitor,
@@ -13,6 +13,7 @@ import type { ControlState } from "../shared/computer-use";
 import { useI18n } from "./i18n";
 import { messages } from "./locales/computer-use";
 import { RemoteBrowser } from "./RemoteBrowser";
+import { NativeBrowserSurface, type NativeBrowserViewport } from "./NativeBrowserSurface";
 import "./computer-control.css";
 
 export function ComputerControl({
@@ -22,6 +23,10 @@ export function ComputerControl({
   open,
   onOpenChange,
   onOpenBrowser,
+  browserPresentation,
+  browserBlocked = false,
+  onBrowserViewport,
+  onBrowserTargetChange,
 }: {
   api: DesktopAPI;
   conversationId?: string;
@@ -29,6 +34,10 @@ export function ComputerControl({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenBrowser: (id: string) => void;
+  browserPresentation?: "native-view" | "remote-frame";
+  browserBlocked?: boolean;
+  onBrowserViewport?: (viewport: NativeBrowserViewport | null) => void;
+  onBrowserTargetChange?: (id: string | null) => void;
 }) {
   const { t } = useI18n(messages);
   const setOpen = onOpenChange;
@@ -37,6 +46,8 @@ export function ComputerControl({
     [saving, setSaving] = useState(false);
   const [paneWidth, setPaneWidth] = useState<number | null>(null);
   const anchor = useRef<HTMLButtonElement>(null);
+  const selectedConversation = useRef(conversationId);
+  selectedConversation.current = conversationId;
   const target = anchor.current?.closest<HTMLElement>(".main");
   const maxWidth = Math.max(
     360,
@@ -86,7 +97,8 @@ export function ComputerControl({
       }
       if (e.kind === "control") {
         setState(e.state);
-        if (e.state.pending || e.state.activity.at(-1)?.status === "running")
+        if ((e.state.pending && e.state.pending.conversationId === selectedConversation.current) ||
+            (e.state.activity.at(-1)?.status === "running" && e.state.activity.at(-1)?.conversationId === selectedConversation.current))
           setOpen(true);
       }
     });
@@ -107,6 +119,14 @@ export function ComputerControl({
     state?.grant && state.grant.conversationId === conversationId
       ? state.grant
       : null;
+  const preview = granted ? state?.preview : null;
+  const pending = state?.pending && state.pending.conversationId === conversationId ? state.pending : null;
+  const activity = state?.activity.filter(a => a.conversationId === conversationId) ?? [];
+  const browserTarget = preview?.kind === "browser" ? preview.id : null;
+  useLayoutEffect(() => {
+    onBrowserTargetChange?.(browserTarget);
+    return () => onBrowserTargetChange?.(null);
+  }, [browserTarget, onBrowserTargetChange]);
   const report = useCallback(
     (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     [],
@@ -181,7 +201,7 @@ export function ComputerControl({
         </button>
       </header>
       <div className="computer-control-body">
-        <details className="control-grants" open={!state?.preview}>
+        <details className="control-grants" open={!preview}>
           <summary>
             <ShieldCheck size={15} /> {t("Allow for this conversation")}
           </summary>
@@ -218,18 +238,18 @@ export function ComputerControl({
             <p className="muted">{state.available.reason}</p>
           )}
         </details>
-        {state?.pending && (
+        {pending && (
           <section
             className="control-consent"
             role="alert"
-            aria-label={t(state.pending.title)}
+            aria-label={t(pending.title)}
           >
-            <strong>{t(state.pending.title)}</strong>
-            <pre>{state.pending.details}</pre>
+            <strong>{t(pending.title)}</strong>
+            <pre>{pending.details}</pre>
             <div>
               <button
                 onClick={() =>
-                  void run(() => api.controlApprove(state.pending!.id, false))
+                  void run(() => api.controlApprove(pending.id, false))
                 }
               >
                 {t("Decline")}
@@ -237,11 +257,11 @@ export function ComputerControl({
               <button
                 className="primary"
                 onClick={() =>
-                  void run(() => api.controlApprove(state.pending!.id, true))
+                  void run(() => api.controlApprove(pending.id, true))
                 }
               >
                 {t(
-                  state.pending.title === "Allow control action"
+                  pending.title === "Allow control action"
                     ? "Allow once"
                     : "Allow for this conversation",
                 )}
@@ -254,13 +274,13 @@ export function ComputerControl({
             {error}
           </p>
         )}
-        {state?.preview ? (
+        {preview ? (
           <section className="control-preview">
-            {state.preview.kind === "browser" && (
+            {preview.kind === "browser" && (
               <button
                 className="control-expand"
                 onClick={() => {
-                  onOpenBrowser(state.preview!.id);
+                  onOpenBrowser(preview.id);
                   setOpen(false);
                 }}
               >
@@ -268,23 +288,28 @@ export function ComputerControl({
                 {t("Open full browser")}
               </button>
             )}
-            <div className="control-address">{state.preview.title}</div>
-            {state.preview.url && (
-              <div className="control-url" title={state.preview.url}>
-                {state.preview.url}
+            <div className="control-address">{preview.title}</div>
+            {preview.url && (
+              <div className="control-url" title={preview.url}>
+                {preview.url}
               </div>
             )}
-            {state.preview.kind === "browser" ? (
-              <RemoteBrowser id={state.preview.id} api={api} report={report} />
+            {preview.kind === "browser" ? (
+              browserPresentation === "native-view" && onBrowserViewport ? (
+                <NativeBrowserSurface id={preview.id}
+                  blocked={browserBlocked || !!pending || !granted?.browser}
+                  label={t("Live browser page")}
+                  onViewport={onBrowserViewport} />
+              ) : <RemoteBrowser id={preview.id} api={api} report={report} />
             ) : (
               <>
                 <img
-                  src={state.preview.frame?.dataURL}
+                  src={preview.frame?.dataURL}
                   alt={t("Last observed window")}
                 />
                 <small>
                   {t("Last observed window")} ·{" "}
-                  {new Date(state.preview.at).toLocaleTimeString()}
+                  {new Date(preview.at).toLocaleTimeString()}
                 </small>
               </>
             )}
@@ -300,10 +325,10 @@ export function ComputerControl({
             </p>
           </section>
         )}
-        {!!state?.activity.length && (
-          <details className="control-activity" open={!state?.preview}>
+        {!!activity.length && (
+          <details className="control-activity" open={!preview}>
             <summary>{t("Activity")}</summary>
-            {state.activity
+            {activity
               .slice(-12)
               .reverse()
               .map((a) => (

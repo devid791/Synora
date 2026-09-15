@@ -168,7 +168,10 @@ In the local web companion, the browser UI is a client of the local service. Fil
 
 ## Browser and computer control (source candidate)
 
-The `0.2.0` source candidate can show a real browser beside the conversation and
+The `0.2.0` source candidate embeds the actual live browser page beside the desktop
+conversation: you see typing, searches, navigation and scrolling and can interact
+with the same page. Screenshots are model observations, not the desktop display.
+The local web edition uses an interactive frame preview instead. Synora can also
 operate permitted application windows on the host running Synora. This is not
 control of the inference server or an arbitrary visitor's computer in web mode.
 Open **Computer & browser** to inspect availability and enable the intended

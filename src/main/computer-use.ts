@@ -415,7 +415,10 @@ export class ComputerUse {
               combined,
             );
           this.current(owner, combined);
-          if (Date.now() - observed.at > 120000) {
+          const expiredObservation = Date.now() - observed.at > 120000;
+          if (kind === "browser" || expiredObservation) {
+            // A live side pane can be resized between observation and action.
+            // Always reject stale browser geometry, even for a young lease.
             // Slow visual inference can exceed two minutes. Do not blindly
             // extend a stale coordinate lease: re-capture locally and require
             // EXACT image/dimension equality before executing the old intent.
@@ -426,7 +429,7 @@ export class ComputerUse {
               : await this.computer!.capture(target, combined);
             this.current(owner, combined);
             if (currentFrame.width !== observed.frame.width || currentFrame.height !== observed.frame.height ||
-                currentFrame.dataURL !== observed.frame.dataURL)
+                (expiredObservation && currentFrame.dataURL !== observed.frame.dataURL))
               throw Error("The observed page/window changed while the model was working; take a fresh snapshot before acting");
           }
           if (
@@ -479,6 +482,9 @@ export class ComputerUse {
               ? await this.browser.frame!(target)
               : await this.computer!.capture(target, combined);
           this.current(owner, combined);
+          const viewport = page?.viewport as {width?: number; height?: number} | undefined;
+          if (viewport && (viewport.width !== frame.width || viewport.height !== frame.height))
+            throw Error("Browser viewport changed while capturing; take a fresh snapshot");
           const accessibility = kind === "computer"
             ? this.computer?.inspect
               ? await this.computer.inspect(target,frame,combined)

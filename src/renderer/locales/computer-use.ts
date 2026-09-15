@@ -1,5 +1,9 @@
 import type { Messages } from "../i18n";
 export const messages: Messages = {
+  "Live browser page": [
+    "Pagina browser dal vivo", "Page du navigateur en direct", "Live-Browserseite",
+    "Página del navegador en directo", "Página do navegador em direto", "Live browserpagina",
+  ],
   "Resize browser panel": [
     "Ridimensiona pannello browser",
     "Redimensionner le panneau du navigateur",

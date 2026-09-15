@@ -120,6 +120,7 @@ async function start() {
         nativeDialogs: true,
         terminal: true,
         embeddedBrowser: true,
+        browserPresentation: "native-view",
         engine: "simulated",
         liveInference: false,
       },

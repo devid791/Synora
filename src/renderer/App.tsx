@@ -63,6 +63,7 @@ import {
 import { emptyEngine, reduceEngine } from "./engine-state";
 import { RemoteBrowser } from "./RemoteBrowser";
 import { ComputerControl } from "./ComputerControl";
+import type { NativeBrowserViewport } from "./NativeBrowserSurface";
 import { ComposerHistory } from "./composer-history";
 import { Modal } from "./Modal";
 import { BotLibrary, type BotSelection } from "./BotLibrary";
@@ -195,6 +196,8 @@ export function App({ api }: { api: DesktopAPI }) {
   const [conversationOverlay, setConversationOverlay] = useState(false);
   const [telemetryOverlay, setTelemetryOverlay] = useState(false);
   const [controlPanelOpen, setControlPanelOpen] = useState(false);
+  const [controlBrowserViewport, setControlBrowserViewport] = useState<NativeBrowserViewport | null>(null);
+  const [controlBrowserTarget, setControlBrowserTarget] = useState<string | null>(null);
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   useEffect(() => {
     const resized = () => setViewportWidth(window.innerWidth);
@@ -202,7 +205,8 @@ export function App({ api }: { api: DesktopAPI }) {
     return () => window.removeEventListener("resize", resized);
   }, []);
   const compactControl = controlPanelOpen && viewportWidth <= 1100;
-  const overlayOpen = !!integration || workspacePrompt !== null || conversationOverlay || telemetryOverlay || controlPanelOpen;
+  const blockingOverlay = !!integration || workspacePrompt !== null || conversationOverlay || telemetryOverlay;
+  const overlayOpen = blockingOverlay || controlPanelOpen;
   const preferenceWrite = useRef<Promise<void> | null>(null);
   const conversationWrite = useRef<Promise<void> | null>(null);
   const draftWrite = useRef<Promise<unknown> | null>(null);
@@ -529,6 +533,14 @@ export function App({ api }: { api: DesktopAPI }) {
     });
   }, [engine.items, current?.messages.length]);
   useEffect(() => {
+    // One owner for the native child view: use the actual page beside chat,
+    // not a screenshot loop. Full-browser and side-panel layouts cannot race.
+    if (controlPanelOpen && caps?.browserPresentation === "native-view") {
+      const surface = !blockingOverlay ? controlBrowserViewport : null;
+      void api.browserLayout(surface?.id ?? null,
+        surface?.rect ?? { x: 0, y: 0, width: 0, height: 0 }).then(unwrap).catch(report);
+      return () => { void api.browserLayout(null, { x: 0, y: 0, width: 0, height: 0 }); };
+    }
     if (view !== "browser" || !tab || !browserRect.current || overlayOpen) {
       void api.browserLayout(null, { x: 0, y: 0, width: 0, height: 0 });
       return;
@@ -555,7 +567,7 @@ export function App({ api }: { api: DesktopAPI }) {
       window.removeEventListener("resize", layout);
       void api.browserLayout(null, { x: 0, y: 0, width: 0, height: 0 });
     };
-  }, [view, tab, notice, error, overlayOpen]);
+  }, [view, tab, notice, error, overlayOpen, controlPanelOpen, controlBrowserViewport, blockingOverlay, caps?.browserPresentation]);
   const newConversation = () =>
     run(async () => {
       ensureCleanEditor();
@@ -1065,7 +1077,9 @@ export function App({ api }: { api: DesktopAPI }) {
           </div>
           <div className="actions">
             {view === "workspace" && <SplitToggle split={split} />}
-            <ComputerControl api={api} conversationId={current?.id} busy={busy} open={controlPanelOpen} onOpenChange={setControlPanelOpen} onOpenBrowser={id => { setTab(id); void selectView("browser"); }} />
+            <ComputerControl api={api} conversationId={current?.id} busy={busy} open={controlPanelOpen} onOpenChange={setControlPanelOpen} onOpenBrowser={id => { setTab(id); void selectView("browser"); }}
+              browserPresentation={caps?.browserPresentation} browserBlocked={blockingOverlay}
+              onBrowserViewport={setControlBrowserViewport} onBrowserTargetChange={setControlBrowserTarget} />
             <span className="badge">
               {live ? t("{provider} live", { provider: providerLabel }) : t("Simulator")}
             </span>
@@ -2155,7 +2169,7 @@ export function App({ api }: { api: DesktopAPI }) {
                 </div>
               )}
               <div className="browser-surface" ref={browserRect}>
-                {tab && (caps?.browserPresentation === "remote-frame" || controlPanelOpen) && (
+                {tab && (caps?.browserPresentation === "remote-frame" || (controlPanelOpen && !controlBrowserTarget)) && (
                   <RemoteBrowser key={tab} api={api} id={tab} report={report} />
                 )}
                 {!tab && (
