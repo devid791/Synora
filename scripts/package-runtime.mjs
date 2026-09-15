@@ -5,6 +5,7 @@ import { gzip } from "node:zlib";
 import { promisify } from "node:util";
 import { join, resolve } from "node:path";
 import lock from "../docs/core-runtime-lock.json" with { type: "json" };
+import legacy from "../docs/core-runtime-legacy.json" with { type: "json" };
 async function digest(path) {
   const hash = createHash("sha256");
   for await (const data of createReadStream(path)) hash.update(data);
@@ -14,7 +15,7 @@ export async function packageRuntime(resources, platform, arch) {
   const key = `${platform}-${arch}`,
     spec = lock.targets[key];
   if (!spec) throw new Error(`No qualified Core archive for package ${key}`);
-  const archive = resolve("out/core-packages", spec.file),
+  const archive = resolve("out/core-packages", lock.version, spec.file),
     info = await lstat(archive);
   if (
     !info.isFile() ||
@@ -25,6 +26,13 @@ export async function packageRuntime(resources, platform, arch) {
     throw new Error(
       "The packaged Core archive must match the pinned official SHA256",
     );
+  const previous = legacy.targets[key];
+  if (!previous) throw new Error(`No retained rollback Core archive for ${key}`);
+  const rollbackArchive = resolve("out/core-packages", previous.file);
+  const rollbackInfo = await lstat(rollbackArchive);
+  if (!rollbackInfo.isFile() || rollbackInfo.isSymbolicLink() ||
+      rollbackInfo.size !== previous.size || await digest(rollbackArchive) !== previous.sha256)
+    throw new Error("Retained rollback Core archive must match its original official SHA256");
   const helperDirectory = resolve("out/native", key),
     name = platform === "win32" ? "synora-web-mcp.exe" : "synora-web-mcp";
   const helper = join(helperDirectory, name),
@@ -48,8 +56,9 @@ export async function packageRuntime(resources, platform, arch) {
   for (const [file, expected] of Object.entries(receipt.source_hashes ?? {}))
     if ((await digest(resolve(file))) !== expected)
       throw new Error("Native web executor was built from different source");
-  await mkdir(join(resources, "core-packages"), { recursive: true });
-  await copyFile(archive, join(resources, "core-packages", spec.file));
+  await mkdir(join(resources, "core-packages", lock.version), { recursive: true });
+  await copyFile(archive, join(resources, "core-packages", lock.version, spec.file));
+  await copyFile(rollbackArchive, join(resources, "core-packages", previous.file));
   for (const name of ["LICENSE", "NOTICE"])
     await copyFile(
       resolve("native/licenses/core", name + ".txt"),

@@ -1,5 +1,5 @@
 import { PROTOCOL_VERSION } from "../shared/contracts";
-import { corePackage, type CorePackage } from "./core-runtime";
+import { corePackage, legacyCorePackage, type CorePackage } from "./core-runtime";
 import mac0154 from "../../docs/core-0.154.0-darwin-arm64.json" with { type: "json" };
 
 export interface QualifiedCore {
@@ -51,9 +51,10 @@ export const qualifiedCoreUpdates: readonly QualifiedCore[] = [
   },
 ];
 export function qualifiedCore(version: string, key?: string): QualifiedCore {
-  if (version === PROTOCOL_VERSION)
+  const bundled = corePackage(key), legacy = legacyCorePackage(key);
+  if (version === bundled.version || version === legacy.version)
     return {
-      package: corePackage(key),
+      package: version === bundled.version ? bundled : legacy,
       protocol: PROTOCOL_VERSION,
       qualification: {
         sourceCommit: "",

@@ -15,8 +15,8 @@ import type {
   ProviderCredentialStatus,
 } from "../shared/contracts";
 export interface CredentialCipher {
-  seal(value: string): Buffer;
-  open(value: Buffer): string;
+  seal(value: string): Buffer | Promise<Buffer>;
+  open(value: Buffer): string | Promise<string>;
 }
 type Envelope = {
   version: 1;
@@ -26,6 +26,7 @@ type Envelope = {
 };
 /** Dedicated owned storage. UI can set/delete/query presence, never read tokens. */
 export class ProviderCredentials {
+  private mutations = new Map<string, Promise<unknown>>();
   constructor(
     private directory: string,
     private cipher?: CredentialCipher,
@@ -34,6 +35,15 @@ export class ProviderCredentials {
     if (provider.kind !== "provider" || !/^[a-z0-9-]{1,80}$/.test(provider.id))
       throw new Error("Invalid credential provider identity");
     return join(this.directory, `${provider.id}.json`);
+  }
+  private mutate<T>(provider: Integration, action: () => Promise<T>): Promise<T> {
+    const target = this.target(provider);
+    const previous = this.mutations.get(target) ?? Promise.resolve();
+    const operation = previous.catch(() => {}).then(action);
+    this.mutations.set(target, operation);
+    const cleanup = () => { if (this.mutations.get(target) === operation) this.mutations.delete(target); };
+    void operation.then(cleanup, cleanup);
+    return operation;
   }
   private async envelope(provider: Integration): Promise<Envelope | undefined> {
     const target = this.target(provider);
@@ -110,7 +120,7 @@ export class ProviderCredentials {
     try {
       if (value.storage === "private-file") return value.value;
       if (!this.cipher) throw Error();
-      return this.cipher.open(Buffer.from(value.value, "base64"));
+      return await this.cipher.open(Buffer.from(value.value, "base64"));
     } catch {
       throw Error(
         "The saved credential is unavailable or invalid. Unlock the OS credential store or replace it explicitly.",
@@ -118,6 +128,9 @@ export class ProviderCredentials {
     }
   }
   async savePrivateRecord(provider: Integration, record: string) {
+    return this.mutate(provider, () => this.writePrivateRecord(provider, record));
+  }
+  private async writePrivateRecord(provider: Integration, record: string) {
     if (Buffer.byteLength(record) > 48000)
       throw Error("Private credential record exceeds storage bound");
     if (
@@ -139,7 +152,7 @@ export class ProviderCredentials {
     let value: string;
     try {
       value = this.cipher
-        ? this.cipher.seal(record).toString("base64")
+        ? (await this.cipher.seal(record)).toString("base64")
         : record;
     } catch {
       throw new Error(
@@ -168,10 +181,12 @@ export class ProviderCredentials {
     return this.status(provider);
   }
   async remove(provider: Integration) {
-    await unlink(this.target(provider)).catch((e) => {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT")
-        throw new Error("Cannot remove this Synora provider credential");
+    return this.mutate(provider, async () => {
+      await unlink(this.target(provider)).catch((e) => {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT")
+          throw new Error("Cannot remove this Synora provider credential");
+      });
+      return this.status(provider);
     });
-    return this.status(provider);
   }
 }

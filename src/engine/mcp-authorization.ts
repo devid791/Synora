@@ -4,13 +4,12 @@ import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { appServerEnvironment } from "./axiom-process";
-import { managedCore } from "./core-runtime";
+import { managedCore, selectedCoreVersion } from "./core-runtime";
 import { mcpConfiguration } from "./mcp-config";
 import { integrationServerName } from "../shared/integration-runtime";
 import { oauthBrowserUrl } from "../shared/oauth-url";
 import {
   configSchema,
-  PROTOCOL_VERSION,
   type Integration,
   type McpAuthorization,
 } from "../shared/contracts";
@@ -239,7 +238,7 @@ export class McpAuthorizationController {
       });
       if (
         version.stdout.trim() !==
-        `codex-cli ${options.runtime?.version ?? PROTOCOL_VERSION}`
+        `codex-cli ${selectedCoreVersion(options)}`
       )
         throw new Error("Pinned Core version mismatch");
     }

@@ -1,5 +1,6 @@
 import { build as bundle } from "esbuild";
 import { build as vite } from "vite";
+import "./build-computer.mjs";
 await vite({
   base: "./",
   build: { outDir: "dist/renderer", emptyOutDir: true },

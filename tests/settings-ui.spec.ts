@@ -478,7 +478,99 @@ test("Busy Enter cannot target another conversation, cleanup, disconnected Core 
   await expect(input).toHaveValue("KEEP_DRAFT");
 });
 
-test("Legacy sessions keep their actual Ask policy; explicit composer permission opens a correctly snapshotted session", async ({
+for (const preference of ["queue", "steer"] as const)
+  test(`Visible Send now / Queue actions are explicit with ${preference} default and preserve turn identity`, async ({ page }) => {
+    await mount(page, { busyEnterBehavior: preference }, "web", { running: true });
+    await page.getByRole("button", { name: "Workspace", exact: true }).click();
+    const input = page.getByRole("textbox", { name: "Message", exact: true });
+    const actions = page.locator(".busy-message-actions");
+    await input.fill("");
+    await expect(actions.getByRole("button", { name: "Send now", exact: true })).toBeDisabled();
+    await expect(actions.getByRole("button", { name: "Queue", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Cancel turn", exact: true })).toBeEnabled();
+    for (const [label, behavior] of [["Send now", "steer"], ["Queue", "queue"]] as const) {
+      await input.fill(`CONTROLLED ${behavior}`);
+      await actions.getByRole("button", { name: label, exact: true }).click();
+      await expect(input).toHaveValue("");
+      await expect(page.locator(".busy-message-receipt")).toHaveText(behavior === "steer"
+        ? "Sent to the active turn." : "Queued — after the current turn");
+      const calls = (await page.evaluate(() => window.settingsHarness.calls)).filter(c => c.method === "engineStart");
+      expect(calls.at(-1)?.args).toEqual(["owned-session", `CONTROLLED ${behavior}`, "text", {
+        behavior, expectedThreadId: "owned-thread", expectedTurnId: "owned-turn",
+      }]);
+      if (behavior === "steer") await expect(page.locator(".queued-message")).toHaveCount(0);
+      else await expect(page.locator(".queued-message")).toHaveText(/CONTROLLED queue/);
+    }
+    const h = await page.evaluate(() => window.settingsHarness);
+    expect(h.state.preferences.busyEnterBehavior).toBe(preference);
+    expect(h.state.conversations.map(c => c.id)).toEqual(["owned-session"]);
+    expect(h.calls.filter(c => /^(newConversation|engineCancel|engineConfigure)$/.test(c.method))).toEqual([]);
+    expect(h.calls.filter(c => c.method === "engineStart")).toHaveLength(2);
+    expect(h.unexpected).toEqual([]);
+    await page.evaluate(() => window.settingsHarness.updateEngine({ turnId: "next-owned-turn" }));
+    await expect(page.locator(".busy-message-receipt")).toHaveCount(0);
+  });
+
+test("Send now waits for acknowledgement, retains a rejected draft and never discards newer typing", async ({ page }) => {
+  await mount(page, {}, "web", { running: true });
+  await page.getByRole("button", { name: "Workspace", exact: true }).click();
+  const input = page.getByRole("textbox", { name: "Message", exact: true });
+  const send = page.getByRole("button", { name: "Send now", exact: true });
+  await page.evaluate(() => { window.settingsHarness.holdSubmission = true; });
+  await input.fill("GUIDANCE WHILE BUSY");
+  await send.click();
+  await expect(send).toBeDisabled();
+  await expect(page.locator(".busy-message-actions").getByRole("button", { name: "Queue", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Cancel turn", exact: true })).toBeEnabled();
+  await expect(page.locator(".busy-message-status")).toHaveText("Submitting message…");
+  await expect(page.locator(".busy-message-receipt")).toHaveCount(0);
+  await input.press("Control+Enter");
+  await page.evaluate(() => window.settingsHarness.releaseSubmission(true));
+  await expect(page.getByRole("alert")).toContainText("CONTROLLED stale turn");
+  await expect(input).toHaveValue("GUIDANCE WHILE BUSY");
+  await expect(page.locator(".busy-message-receipt")).toHaveCount(0);
+  expect((await page.evaluate(() => window.settingsHarness.calls)).filter(c => c.method === "engineStart")).toHaveLength(1);
+  await send.click();
+  await expect(send).toBeDisabled();
+  await input.fill("NEWER UNSENT DRAFT");
+  await page.evaluate(() => window.settingsHarness.releaseSubmission());
+  await expect(page.locator(".busy-message-receipt")).toHaveText("Sent to the active turn.");
+  await expect(input).toHaveValue("NEWER UNSENT DRAFT");
+  const h = await page.evaluate(() => window.settingsHarness);
+  expect(h.calls.filter(c => c.method === "engineStart")).toHaveLength(2);
+  expect(h.state.conversations).toHaveLength(1);
+  expect(h.unexpected).toEqual([]);
+});
+
+test("Busy actions remain compact and translated in light/dark at desktop and narrow widths", async ({ page }, info) => {
+  await mount(page, {}, "web", { running: true });
+  await page.getByRole("button", { name: "Workspace", exact: true }).click();
+  for (const [width, height] of [[1440, 800], [1024, 700], [900, 640], [390, 980]]) {
+    await page.setViewportSize({ width, height });
+    for (const theme of ["light", "dark"] as const) {
+      for (const locale of localeSchema.options) {
+        await page.evaluate(({ locale, theme }) => {
+          const h = window.settingsHarness;
+          Object.assign(h.state.preferences, { locale, theme });
+          h.state.revision++;
+          h.updateEngine({});
+        }, { locale, theme });
+        const actions = page.locator(".busy-message-actions");
+        await expect(actions.getByRole("button", { name: translate(messages, locale, "Send now"), exact: true })).toBeVisible();
+        await expect(actions.getByRole("button", { name: translate(messages, locale, "Queue"), exact: true })).toBeVisible();
+        for (const button of await actions.getByRole("button").all()) {
+          const bounds = (await button.boundingBox())!;
+          expect(bounds.x).toBeGreaterThanOrEqual(0);
+          expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+          expect(bounds.y + bounds.height).toBeLessThanOrEqual(height);
+        }
+      }
+      await page.screenshot({ path: info.outputPath(`busy-actions-${width}-${theme}.png`) });
+    }
+  }
+});
+
+test("Legacy sessions keep their actual Ask policy; explicit composer permission updates the same session", async ({
   page,
 }) => {
   await mount(page, { permission: "auto-review" });
@@ -492,12 +584,15 @@ test("Legacy sessions keep their actual Ask policy; explicit composer permission
   const trigger = page.locator(".composer .permission-trigger");
   await expect(trigger).toHaveAttribute("data-permission", "ask");
   await trigger.click();
+  const before = await page.evaluate(() => structuredClone(window.settingsHarness.state.conversations));
   await page.locator('[data-permission-option="auto-review"]').click();
   await expect(trigger).toHaveAttribute("data-permission", "auto-review");
   const h = await page.evaluate(() => window.settingsHarness);
   expect(h.state.conversations[0].defaults?.permission).toBe("auto-review");
-  expect(h.state.conversations[1].draft).toBe("KEEP_DRAFT");
-  expect(h.state.conversations[1].defaults).toBeUndefined();
+  expect(h.state.conversations.map(c => c.id)).toEqual(before.map(c => c.id));
+  expect(h.state.conversations[0].draft).toBe("KEEP_DRAFT");
+  expect(h.state.conversations[0].messages).toEqual(before[0].messages);
+  expect(h.calls.filter(c => c.method === "newConversation")).toHaveLength(0);
   expect(h.unexpected).toEqual([]);
 });
 

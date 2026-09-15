@@ -53,7 +53,6 @@ export function ResourceTelemetry({ api, engine, metrics, axiom }: {
   const status = axiom && observation.status?.mode === "live" ? observation.status : null;
   const resources = status?.resources.state === "available" ? status.resources.data : null;
   const vram = resources?.resources_after.gpu_available ? resources.resources_after : null;
-  const runtime = status?.runtime.state === "available" ? status.runtime : null;
   const ctx = contextView(engine);
   const active = ["running", "waiting"].includes(engine.status);
   const report = engine.usage;
@@ -115,9 +114,9 @@ export function ResourceTelemetry({ api, engine, metrics, axiom }: {
           source={source("Axiom /ops/usage")}
           timestamp={status?.resources ? t("Retrieved {time}; not the sample time", { time: date(status.resources.observedAt) }) : undefined} />
         {!status?.gpu && <Meter label={t("GPU utilization")} used={null} total={null} text={t("Unavailable")}
-          state={t(!axiom ? "Not applicable" : runtime && !sampleStale(runtime.observedAt, now) ? runtime.data.generation_busy ? "GPU task busy" : "GPU task idle" : "Unavailable")}
+          state={t(!axiom ? "Not applicable" : "Unavailable")}
           note={t(axiom ? "No live GPU utilization source is exposed by this backend." : "Not exposed by this provider")}
-          source={source("Axiom /ops/runtime")} timestamp={sampled(runtime?.observedAt)} />}
+          source={source("—")} />}
         <Meter label={t("Context occupancy")} used={ctx.used} total={ctx.capacity}
           text={ctx.used !== null ? `${number(ctx.used)} / ${ctx.capacity ? number(ctx.capacity) : "—"} · ${ctx.percent !== null ? t("{percent}% used", { percent: fixed(ctx.percent) }) : "—"}` : "—"}
           state={t("Latest report")} note={t(ctx.refreshing ? "Waiting for updated usage after compaction." : "Latest Core report; not cumulative token consumption.")}

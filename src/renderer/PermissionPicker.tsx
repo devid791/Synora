@@ -22,7 +22,7 @@ const choices = [
   {
     mode: "full",
     label: "Full access",
-    description: "Access files and the internet without approval prompts.",
+    description: "Access files, the internet, browser and desktop apps without Synora approval prompts. OS permissions still apply.",
   },
 ] as const;
 

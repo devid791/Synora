@@ -67,7 +67,7 @@ export async function mcpConfiguration(
     const prefix = `mcp_servers.${integrationServerName(v.id)}`;
     config[`${prefix}.enabled`] = true;
     config[`${prefix}.startup_timeout_sec`] = 10;
-    config[`${prefix}.tool_timeout_sec`] = 35;
+    config[`${prefix}.tool_timeout_sec`] = v.id === "internal-computer-use" ? 120 : 35;
     if (v.executor === "searxng") {
       config[`${prefix}.command`] = await webBinary(stateDirectory);
       config[`${prefix}.args`] = [];

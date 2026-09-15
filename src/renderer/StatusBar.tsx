@@ -64,6 +64,16 @@ export function StatusBar({
             <h3>{t("Local services")}</h3>
             <div className="telemetry-values">
               <span>
+                {t("Client application · {platform}", {
+                  platform:
+                    platform === "win32"
+                      ? "Windows"
+                      : platform === "darwin"
+                        ? "macOS"
+                        : platform,
+                })}
+              </span>
+              <span>
                 {t("Engine:")} {provider}
               </span>
               {live && <AppServerStatus engine={engine} />}

@@ -18,19 +18,22 @@ export function RemoteBrowser({
 }) {
   const { t } = useI18n(messages satisfies Messages);
   const [frame, setFrame] = useState<BrowserFrame | null>(null);
+  const [frameError, setFrameError] = useState<string | null>(null);
   const queue = useRef(Promise.resolve());
   useEffect(() => {
     let active = true,
       timer: ReturnType<typeof setTimeout>;
+    setFrame(null);
+    setFrameError(null);
     const poll = async () => {
       try {
         const result = await api.browserFrame(id);
         if (active) {
-          if (result.ok) setFrame(result.value);
-          else report(new Error(result.error.message));
+          if (result.ok) { setFrame(result.value); setFrameError(null); }
+          else setFrameError(result.error.message);
         }
       } catch (e) {
-        if (active) report(e);
+        if (active) setFrameError(e instanceof Error ? e.message : String(e));
       } finally {
         if (active) timer = setTimeout(() => void poll(), 350);
       }
@@ -42,6 +45,7 @@ export function RemoteBrowser({
     };
   }, [api, id, report]);
   const input = (value: BrowserInput) => {
+    if (frameError) return;
     queue.current = queue.current
       .then(async () => {
         const result = await api.browserInput(id, value);
@@ -62,6 +66,8 @@ export function RemoteBrowser({
       ),
     };
   };
+  if (frameError)
+    return <p className="muted" role="status" title={frameError}>{t("Browser preview unavailable. Retrying…")}</p>;
   if (!frame)
     return <p className="muted">{t("Connecting to the isolated browser…")}</p>;
   return (

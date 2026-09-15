@@ -16,6 +16,8 @@ test("Private GPU TLS client authenticates exact provider/CA, rejects stale/redi
   let server: Server | undefined;
   const client = new GpuCollectorClient(registry);
   try {
+    const absent = await client.read(provider);
+    assert.equal(absent?.state === "unavailable" && absent.code, "GPU_NOT_CONFIGURED");
     const supplied = process.env.SYNORA_QA_GPU_TLS_DIR;
     if (supplied) {
       // QA-only portable certificate input. Keep TLS verification enabled and
@@ -50,7 +52,8 @@ test("Private GPU TLS client authenticates exact provider/CA, rejects stale/redi
     const save = (patch = {}) => writeFile(registry, JSON.stringify([{ providerEndpoint: provider, endpoint, token, certificate, ...patch }]), { mode: 0o600 });
     await save(); const good = await client.read(provider); assert.equal(good?.state, "available");
     assert.ok(!JSON.stringify(good).includes(token)); assert.equal(requests, 1);
-    assert.equal(await client.read("https://different.fixture.invalid/codex/v1"), undefined); assert.equal(requests, 1);
+    const unmatched = await client.read("https://different.fixture.invalid/codex/v1");
+    assert.equal(unmatched?.state === "unavailable" && unmatched.code, "GPU_NOT_CONFIGURED"); assert.equal(requests, 1);
     for (const mode of ["stale", "redirect", "large", "invalid"]) { behavior = mode; const result = await client.read(provider);
       assert.equal(result?.state, "unavailable", mode); assert.ok(!JSON.stringify(result).includes(token)); }
     assert.equal(redirected, 0);

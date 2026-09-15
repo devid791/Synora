@@ -47,6 +47,54 @@ async function tick(page: Page, ms = 2000) {
   await page.clock.runFor(ms);
 }
 
+for (const platform of ["win32", "darwin", "linux"])
+  test(`GPU identity and server/client provenance stay visible: ${platform}`, async ({ page }, info) => {
+    await mount(page, 1440, "en", "light", 1.5);
+    await page.evaluate(platform => (window as any).setPlatform(platform), platform);
+    const gpu = page.locator(".status-gpu");
+    await expect(gpu.locator("[data-gpu-name]")).toBeVisible();
+    await expect(gpu).toContainText("NVIDIA GeForce RTX 5090");
+    await expect(gpu.locator("[data-gpu-load]")).toHaveText("38%");
+    await detailsButton(page).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.locator("[data-gpu-origin]")).toHaveText("Axiom server · fixture.invalid");
+    await expect(dialog).toContainText(`Client application · ${platform === "win32" ? "Windows" : platform === "darwin" ? "macOS" : platform}`);
+    await expect(dialog).toContainText("Host-wide usage does not identify which GPU this conversation uses.");
+    await expect(dialog.locator("[data-gpu-source]")).toContainText("gpu-first · 0000:01:00.0 · nvidia-smi · Sampled");
+    if (platform === "win32") await page.screenshot({ path: info.outputPath("windows-telemetry-ui-fixture.png") });
+    await page.keyboard.press("Escape");
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(gpu.locator("[data-gpu-name]")).toBeVisible();
+    await expect(gpu.locator("[data-gpu-load]")).toBeVisible();
+    expect(await page.locator("footer").evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  });
+
+test("Windows with no collector shows actionable setup state without losing a running turn", async ({ page }) => {
+  await mount(page);
+  await page.evaluate(() => {
+    const w = window as any;
+    w.setPlatform("win32"); w.noCollector = true;
+    w.patchEngine({ status: "running", completedAt: undefined });
+  });
+  await tick(page);
+  await expect(page.locator(".status-activity-label")).toHaveText("Working");
+  await expect(page.locator(".status-connection")).toContainText("Connected");
+  await expect(page.locator(".status-gpu")).toContainText("GPU telemetry setup required");
+  await expect(page.locator("[data-gpu-live]")).toHaveCount(0);
+  await detailsButton(page).click();
+  await expect(page.getByRole("dialog")).toContainText("This client needs a trusted GPU collector connection");
+  await page.evaluate(() => {
+    const w = window as any;
+    w.noCollector = false; w.devices = []; w.issues = ["nvidia-unavailable", "drm-unavailable"];
+  });
+  await tick(page);
+  await expect(page.locator(".status-gpu")).toContainText("GPU telemetry unavailable");
+  await expect(page.getByRole("dialog")).not.toContainText("No GPU detected");
+  await page.evaluate(() => { (window as any).issues = []; });
+  await tick(page);
+  await expect(page.locator(".status-gpu")).toContainText("No GPU detected");
+});
+
 for (const locale of ["en", "it", "fr", "de", "es", "pt", "nl"])
   for (const width of [1440, 390])
     test(`Grouped bar and accessible details: ${locale}, ${width}px`, async ({
@@ -245,7 +293,8 @@ test("Dynamic GPU inventory preserves measured zero, unknown, multiple devices a
     (window as any).devices[0].utilizationPercent = 0;
   });
   await tick(page);
-  await expect(page.locator(".status-gpu")).toContainText("GPU 0%");
+  await expect(page.locator(".status-gpu [data-gpu-load]")).toHaveText("0%");
+  await expect(page.locator(".status-gpu [data-gpu-name]")).toHaveText("NVIDIA GeForce RTX 5090");
   await page.evaluate(() => {
     const w = window as any;
     w.devices = [
@@ -259,7 +308,8 @@ test("Dynamic GPU inventory preserves measured zero, unknown, multiple devices a
   });
   await tick(page);
   await expect(page.locator("[data-gpu-live='gpu-first']")).toHaveCount(0);
-  await expect(page.locator(".status-gpu")).toContainText("GPU —");
+  await expect(page.locator(".status-gpu [data-gpu-load]")).toHaveText("—");
+  await expect(page.locator(".status-gpu [data-gpu-name]")).toHaveText("Replacement GPU");
   await page.evaluate(() => {
     const w = window as any;
     w.devices.push({

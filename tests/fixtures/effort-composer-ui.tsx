@@ -1,6 +1,7 @@
 // Offline full-App fixture. No service, Core, provider or host API is started.
 import { createRoot } from "react-dom/client";
 import { App } from "../../src/renderer/App";
+import { noControl } from "./control-status";
 import type {
   AppState,
   DesktopAPI,
@@ -27,6 +28,7 @@ const ok = <T,>(value: T): Result<T> => ({
   value: structuredClone(value),
 });
 const implemented = {
+  controlStatus: noControl,
   state: async () => ok(fixture.state),
   capabilities: async () =>
     ok({

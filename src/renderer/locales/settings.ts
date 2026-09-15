@@ -1,6 +1,38 @@
 import type { Messages } from "../i18n";
 
 export const messages = {
+  "Send now": [
+    "Invia subito",
+    "Envoyer maintenant",
+    "Jetzt senden",
+    "Enviar ahora",
+    "Enviar agora",
+    "Nu versturen",
+  ],
+  "Send to the active turn without waiting for it to finish.": [
+    "Invia al turno attivo senza aspettare che termini.",
+    "Envoyer au tour actif sans attendre sa fin.",
+    "An den aktiven Durchlauf senden, ohne auf dessen Ende zu warten.",
+    "Envía al turno activo sin esperar a que termine.",
+    "Envie para o turno ativo sem esperar que termine.",
+    "Verstuur naar de actieve beurt zonder te wachten tot deze klaar is.",
+  ],
+  "Send after the current turn finishes.": [
+    "Invia dopo la fine del turno attuale.",
+    "Envoyer après la fin du tour actuel.",
+    "Nach Ende des aktuellen Durchlaufs senden.",
+    "Envía cuando termine el turno actual.",
+    "Envie quando o turno atual terminar.",
+    "Verstuur nadat de huidige beurt is afgelopen.",
+  ],
+  "Sent to the active turn.": [
+    "Inviato al turno attivo.",
+    "Envoyé au tour actif.",
+    "An den aktiven Durchlauf gesendet.",
+    "Enviado al turno activo.",
+    "Enviado para o turno ativo.",
+    "Verstuurd naar de actieve beurt.",
+  ],
   "Remove queued message": [
     "Rimuovi messaggio in coda",
     "Supprimer le message en attente",

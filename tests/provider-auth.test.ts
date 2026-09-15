@@ -103,6 +103,40 @@ test("Encrypted provider credential adapter cannot downgrade an existing encrypt
   await assert.rejects(locked.save(provider, "replacement"), /Unlock the OS/);
   assert.equal(await vault.load(provider), "fixture-encrypted-token");
 });
+test('Async OS credential reads redact rejection details and failed writes retain the previous encrypted envelope',async(t)=>{
+ const directory=await mkdtemp(join(tmpdir(),'synora-async-vault-'));
+ t.after(()=>rm(directory,{recursive:true,force:true}));
+ let reject=false;
+ const ciphertext=Buffer.from('opaque-encrypted-qa-bytes');
+ const cipher={
+  async seal(){if(reject)throw Error('PRIVATE_OS_DETAIL');return ciphertext;},
+  async open(value:Buffer){assert.deepEqual(value,ciphertext);if(reject)throw Error('PRIVATE_OS_DETAIL');return 'fixture-encrypted-token';},
+ };
+ const vault=new ProviderCredentials(directory,cipher);
+ await vault.save(provider,'fixture-encrypted-token');
+ const file=join(directory,provider.id+'.json'),before=await readFile(file);
+ assert.equal(await vault.load(provider),'fixture-encrypted-token');
+ assert.deepEqual(await readFile(file),before);
+ reject=true;
+ await assert.rejects(vault.load(provider),error=>error instanceof Error&&/unavailable or invalid/.test(error.message)&&!error.message.includes('PRIVATE_OS_DETAIL'));
+ await assert.rejects(vault.save(provider,'replacement'),/previous saved token was not replaced/);
+ assert.deepEqual(await readFile(file),before);
+});
+test('Removing a credential waits for an already-authorized asynchronous save and cannot be undone by its late completion',async(t)=>{
+ const directory=await mkdtemp(join(tmpdir(),'synora-async-remove-'));
+ t.after(()=>rm(directory,{recursive:true,force:true}));
+ let entered!:()=>void,finish!:(v:Buffer)=>void;
+ const started=new Promise<void>(r=>{entered=r;});
+ const cipher={seal(){entered();return new Promise<Buffer>(r=>{finish=r;});},open(){return 'fixture-token';}};
+ const vault=new ProviderCredentials(directory,cipher);
+ const save=vault.savePrivateRecord(provider,'fixture-token');
+ await started;
+ const remove=vault.remove(provider);
+ await new Promise<void>(r=>setTimeout(r,15));
+ finish(Buffer.from('encrypted-qa'));
+ await Promise.all([save,remove]);
+ assert.equal((await vault.status(provider)).present,false);
+});
 test("Bearer is used for catalog, independent telemetry and incremental SSE; wrong tokens/redirects fail without changing no-auth path", async () => {
   const seen: { url: string; authorized: boolean; forwardedBody?: unknown }[] =
     [];

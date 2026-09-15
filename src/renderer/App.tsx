@@ -62,6 +62,8 @@ import {
 } from "../shared/contracts";
 import { emptyEngine, reduceEngine } from "./engine-state";
 import { RemoteBrowser } from "./RemoteBrowser";
+import { ComputerControl } from "./ComputerControl";
+import { ComposerHistory } from "./composer-history";
 import { Modal } from "./Modal";
 import { BotLibrary, type BotSelection } from "./BotLibrary";
 import { messages as botMessages } from "./locales/bots";
@@ -130,10 +132,14 @@ export function App({ api }: { api: DesktopAPI }) {
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const attachmentWrite = useRef<Promise<void> | null>(null);
   const [busySubmissionPending, setBusySubmissionPending] = useState(false);
+  const [busySubmissionReceipt, setBusySubmissionReceipt] = useState<{
+    conversationId: string; threadId: string; turnId: string; behavior: "queue" | "steer";
+  } | null>(null);
   const busySubmissionWrite = useRef<Promise<void> | null>(null);
   const queueRemovalWrite = useRef<Promise<void> | null>(null);
   const [queueRemoval, setQueueRemoval] = useState<{ conversationId: string; messageId: string } | null>(null);
   const composerInput = useRef<HTMLTextAreaElement>(null);
+  const composerHistory = useRef(new ComposerHistory());
   const [providerAuthRevision, setProviderAuthRevision] = useState(0);
   const providerAuthorized = useCallback(
     () => setProviderAuthRevision((v) => v + 1),
@@ -188,7 +194,15 @@ export function App({ api }: { api: DesktopAPI }) {
   }, []);
   const [conversationOverlay, setConversationOverlay] = useState(false);
   const [telemetryOverlay, setTelemetryOverlay] = useState(false);
-  const overlayOpen = !!integration || workspacePrompt !== null || conversationOverlay || telemetryOverlay;
+  const [controlPanelOpen, setControlPanelOpen] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const resized = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", resized);
+    return () => window.removeEventListener("resize", resized);
+  }, []);
+  const compactControl = controlPanelOpen && viewportWidth <= 1100;
+  const overlayOpen = !!integration || workspacePrompt !== null || conversationOverlay || telemetryOverlay || controlPanelOpen;
   const preferenceWrite = useRef<Promise<void> | null>(null);
   const conversationWrite = useRef<Promise<void> | null>(null);
   const draftWrite = useRef<Promise<unknown> | null>(null);
@@ -459,6 +473,12 @@ export function App({ api }: { api: DesktopAPI }) {
     });
   const togglePanel = (key: "sidebarCollapsed" | "filesCollapsed") => {
     if (preferenceWrite.current || !state) return;
+    // Small-screen browser docking temporarily frees navigation space, without
+    // overwriting the user's saved layout. Opening navigation restores it.
+    if (compactControl) {
+      setControlPanelOpen(false);
+      if (!state.preferences[key]) return;
+    }
     setPanelPending(true);
     // A layout preference never reconfigures Core or selects a conversation.
     // Await the real persisted state; failure leaves the current layout intact.
@@ -585,7 +605,8 @@ export function App({ api }: { api: DesktopAPI }) {
       if (started.status !== "interrupted") setDraft("");
       await refresh();
     });
-  const changeDraft = (text: string) => {
+  const changeDraft = (text: string, recalled = false) => {
+    if (!recalled) composerHistory.current.reset();
     setDraft(text);
     if (!conversation) return;
     draftPending.current = { id: conversation, text };
@@ -635,19 +656,22 @@ export function App({ api }: { api: DesktopAPI }) {
     !engine.cleanupPending && !enginePending && !attachmentBusy &&
     !current.draftImageIds?.length && engine.threadId && engine.turnId &&
     engine.sessionId === current.binding.sessionId && engine.threadId === current.binding.threadId);
-  const submitBusyMessage = (alternate = false) => {
+  const submitBusyMessage = (action: boolean | "queue" | "steer" = false) => {
     if (!busySubmissionAvailable || busySubmissionWrite.current || engineOperation.current || !draft.trim()) return;
     const id = conversation, text = draft;
     const expected = {
-      behavior: busyEnterBehavior(state?.preferences.busyEnterBehavior, alternate),
+      behavior: typeof action === "boolean" ? busyEnterBehavior(state?.preferences.busyEnterBehavior, action) : action,
       expectedThreadId: engine.threadId!, expectedTurnId: engine.turnId!,
     };
     setBusySubmissionPending(true);
+    setBusySubmissionReceipt(null);
     const write = run(async () => {
       await flushDraft();
       if (engineOperation.current) return;
       const result = unwrap(await api.engineStart(id, text, "text", expected));
       snapshot(result);
+      setBusySubmissionReceipt({ conversationId: id, threadId: expected.expectedThreadId,
+        turnId: expected.expectedTurnId, behavior: expected.behavior });
       // Typing or navigating during an acknowledgement must not lose a newer draft.
       if (latestComposer.current.conversation === id && latestComposer.current.draft === text) {
         changeDraft("");
@@ -698,9 +722,12 @@ export function App({ api }: { api: DesktopAPI }) {
       </main>
     );
   const pref = state.preferences;
-  const selectedProviderType = state.integrations.find(
+  const sidebarCollapsed = compactControl || !!pref.sidebarCollapsed;
+  const filesCollapsed = compactControl || !!pref.filesCollapsed;
+  const selectedProvider = state.integrations.find(
     (p) => p.id === state.engine.providerId,
-  )?.providerType;
+  );
+  const selectedProviderType = selectedProvider?.providerType;
   const openAi = live && providerUsesCoreModel(selectedProviderType);
   const providerLabel = providerRuntimeLabel(selectedProviderType);
   const selectedCoreModel = openAi
@@ -917,7 +944,7 @@ export function App({ api }: { api: DesktopAPI }) {
   );
   return (
     <div className={`app ${pref.compact ? "compact" : ""}`}>
-      <aside id="synora-navigation" className="sidebar" hidden={pref.sidebarCollapsed ?? false}>
+      <aside id="synora-navigation" className="sidebar" hidden={sidebarCollapsed}>
         <div className="brand">
           <img src={brandSource} alt="Synora" />
           <span>HARNESS DESKTOP</span>
@@ -1009,17 +1036,17 @@ export function App({ api }: { api: DesktopAPI }) {
           <div className="topbar-heading">
             <div className="panel-toggles" aria-busy={panelPending}>
               <button type="button" data-testid="toggle-sidebar"
-                aria-label={pref.sidebarCollapsed ? t("Show navigation") : t("Hide navigation")}
-                title={pref.sidebarCollapsed ? t("Show navigation") : t("Hide navigation")}
-                aria-controls="synora-navigation" aria-expanded={!pref.sidebarCollapsed}
+                aria-label={sidebarCollapsed ? t("Show navigation") : t("Hide navigation")}
+                title={sidebarCollapsed ? t("Show navigation") : t("Hide navigation")}
+                aria-controls="synora-navigation" aria-expanded={!sidebarCollapsed}
                 aria-disabled={panelPending || pendingCompact !== null || localePending}
                 onClick={() => togglePanel("sidebarCollapsed")}>
-                {pref.sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+                {sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
               </button>
               {view === "workspace" && <button type="button" data-testid="toggle-files"
-                aria-label={pref.filesCollapsed ? t("Show files panel") : t("Hide files panel")}
-                title={pref.filesCollapsed ? t("Show files panel") : t("Hide files panel")}
-                aria-controls="synora-files" aria-expanded={!pref.filesCollapsed}
+                aria-label={filesCollapsed ? t("Show files panel") : t("Hide files panel")}
+                title={filesCollapsed ? t("Show files panel") : t("Hide files panel")}
+                aria-controls="synora-files" aria-expanded={!filesCollapsed}
                 aria-disabled={panelPending || pendingCompact !== null || localePending}
                 onClick={() => togglePanel("filesCollapsed")}>
                 <FolderTree size={17} />
@@ -1038,6 +1065,7 @@ export function App({ api }: { api: DesktopAPI }) {
           </div>
           <div className="actions">
             {view === "workspace" && <SplitToggle split={split} />}
+            <ComputerControl api={api} conversationId={current?.id} busy={busy} open={controlPanelOpen} onOpenChange={setControlPanelOpen} onOpenBrowser={id => { setTab(id); void selectView("browser"); }} />
             <span className="badge">
               {live ? t("{provider} live", { provider: providerLabel }) : t("Simulator")}
             </span>
@@ -1093,7 +1121,7 @@ export function App({ api }: { api: DesktopAPI }) {
         <div className="content">
           {view === "workspace" && (
             <div className="workspace">
-              <section id="synora-files" className="files" hidden={pref.filesCollapsed ?? false}>
+              <section id="synora-files" className="files" hidden={filesCollapsed}>
                 <div className="toolbar">
                   <strong>{t("Files")}</strong>
                   <button
@@ -1335,9 +1363,14 @@ export function App({ api }: { api: DesktopAPI }) {
                               ? t("Approval request")
                               : t("Simulated approval request")}
                           </strong>
-                          <p>{engine.approval.params.reason}</p>
+                          <p>{"serverName" in engine.approval.params
+                            ? engine.approval.params.message : engine.approval.params.reason}</p>
                           <code>
-                            {"command" in engine.approval.params
+                            {"serverName" in engine.approval.params
+                              ? `${engine.approval.params.serverName}\n${JSON.stringify(
+                                  engine.approval.params._meta && typeof engine.approval.params._meta === "object" && !Array.isArray(engine.approval.params._meta)
+                                    ? engine.approval.params._meta.tool_params : {}, null, 2)}`
+                              : "command" in engine.approval.params
                               ? engine.approval.params.command
                               : "permissions" in engine.approval.params
                                 ? JSON.stringify(
@@ -1539,10 +1572,26 @@ export function App({ api }: { api: DesktopAPI }) {
                       <textarea
                         ref={composerInput}
                         aria-label={t("Message")}
+                        title={t("Up recalls sent messages from an empty field or the start of a single-line draft; Down returns to your draft. Click or type to edit.")}
                         placeholder={t("Describe what you want to work on…")}
                         value={draft}
                         onChange={(e) => changeDraft(e.target.value)}
+                        onPointerDown={() => composerHistory.current.reset()}
                         onKeyDown={(e) => {
+                          const recalled = composerHistory.current.recall(conversation, current?.messages ?? [], draft,
+                            e.currentTarget.selectionStart, e.currentTarget.selectionEnd,
+                            { key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey,
+                              metaKey: e.metaKey, isComposing: e.nativeEvent.isComposing });
+                          if (recalled !== null) {
+                            e.preventDefault();
+                            changeDraft(recalled, true);
+                            requestAnimationFrame(() => {
+                              const input = composerInput.current;
+                              if (input && latestComposer.current.conversation === conversation && input.value === recalled)
+                                input.setSelectionRange(recalled.length, recalled.length);
+                            });
+                            return;
+                          }
                           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                             e.preventDefault();
                             if (busy) { submitBusyMessage(e.metaKey || e.ctrlKey); return; }
@@ -1818,6 +1867,11 @@ export function App({ api }: { api: DesktopAPI }) {
                     <BusyMessageStatus queue={current?.queuedMessages}
                       behavior={pref.busyEnterBehavior ?? "queue"}
                       available={busySubmissionAvailable} pending={busySubmissionPending}
+                      canSubmit={busySubmissionAvailable && !!draft.trim() && !busySubmissionPending}
+                      submit={submitBusyMessage}
+                      submitted={busySubmissionReceipt?.conversationId === conversation &&
+                        busySubmissionReceipt.threadId === engine.threadId && busySubmissionReceipt.turnId === engine.turnId
+                        ? busySubmissionReceipt.behavior : null}
                       removing={!!queueRemoval}
                       removingId={queueRemoval?.conversationId === conversation ? queueRemoval.messageId : null}
                       remove={removeQueuedMessage}
@@ -2101,7 +2155,7 @@ export function App({ api }: { api: DesktopAPI }) {
                 </div>
               )}
               <div className="browser-surface" ref={browserRect}>
-                {tab && caps?.browserPresentation === "remote-frame" && (
+                {tab && (caps?.browserPresentation === "remote-frame" || controlPanelOpen) && (
                   <RemoteBrowser key={tab} api={api} id={tab} report={report} />
                 )}
                 {!tab && (
@@ -2362,7 +2416,7 @@ export function App({ api }: { api: DesktopAPI }) {
         )}
         <StatusBar api={api} engine={engine} conversationEngine={conversationEngine}
           live={!!live} axiom={!!live && !openAi} providerLabel={providerLabel}
-          providerKey={`${state.engine.mode}:${state.engine.providerId}`} metrics={metrics}
+          providerKey={`${state.engine.mode}:${state.engine.providerId}:${selectedProvider?.endpoint}`} metrics={metrics}
           platform={caps?.platform ?? t("Connecting…")} protocolVersion={PROTOCOL_VERSION}
           onOverlayChange={setTelemetryOverlay} />
       </main>

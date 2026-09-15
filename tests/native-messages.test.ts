@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import { EventEmitter } from "node:events";
 import ts from "typescript";
+import { nativeCredentialCipher } from "../src/main/native-credential-cipher";
 import { localeSchema, type Locale } from "../src/shared/locale";
 import {
   getNativeMessages,
@@ -168,6 +169,7 @@ async function mainHarness() {
     },
   });
   const electron = {
+    globalShortcut: { register: () => true, unregister() {} },
     clipboard: { writeText(text: string) { clipboardWrites.push(text); } },
     app,
     BrowserWindow: class extends EventEmitter {
@@ -240,6 +242,8 @@ async function mainHarness() {
       if (id === "electron") return electron;
       if (id === "./service") return service;
       if (id === "./browser") return { Browser: class {} };
+      if (id === "./computer-native") return { NativeComputer: class {} };
+      if (id === "./native-credential-cipher") return { nativeCredentialCipher };
       if (id === "./native-messages") return { getNativeMessages };
       // Load the real pure helpers added to main; this Linux/in-memory harness
       // never enters the packaged macOS/Windows login-item branch.

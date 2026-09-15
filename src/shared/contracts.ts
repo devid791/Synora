@@ -26,7 +26,8 @@ import type { ToolRequestUserInputParams } from "../protocol/codex-0.153.4/v2/To
 export type ApprovalParams =
   | CommandExecutionRequestApprovalParams
   | FileChangeRequestApprovalParams
-  | PermissionsRequestApprovalParams;
+  | PermissionsRequestApprovalParams
+  | import("./mcp-tool-approval").McpToolApprovalParams;
 export type UserQuestion = { id: string; params: ToolRequestUserInputParams };
 
 export const engineConfigSchema = z
@@ -576,6 +577,7 @@ export interface LocalMetrics {
   observedAt: number;
 }
 export type DesktopEvent =
+  | { kind: "control"; state: import("./computer-use").ControlState }
   | {
       kind: "delegations";
       tasks: import("../engine/delegation-coordinator").DelegationTask[];
@@ -609,6 +611,10 @@ export interface PlatformCapabilities {
   liveInference: boolean;
 }
 export interface DesktopAPI {
+  controlStatus(): Promise<Result<import("./computer-use").ControlState>>;
+  controlConfigure(grant: import("./computer-use").ControlGrant): Promise<Result<import("./computer-use").ControlState>>;
+  controlApprove(id: string, allow: boolean): Promise<Result<import("./computer-use").ControlState>>;
+  controlStop(): Promise<Result<import("./computer-use").ControlState>>;
   orchestrationConfigure(
     conversationId: string,
     plan: import("./orchestration").OrchestrationPlan | null,

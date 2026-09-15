@@ -13,6 +13,9 @@ require their actual prerequisites and account grants.
   permissions, troubleshooting and known limitations.
 - [Build and run](docs/BUILD.md) — desktop and local web development.
 - [Axiom integration](docs/AXIOM-INTEGRATION.md) — the `/codex/v1` boundary.
+- [Browser and computer control](docs/COMPUTER-USE.md) — new source implementation,
+  consent, supported actions and pending platform qualification; not yet in downloads.
+- [GPU telemetry](docs/GPU-TELEMETRY.md) — server/device provenance and trusted collector setup.
 - [Release scope](docs/RELEASE.md) — provenance, signing and qualification limits.
 - [Synora website](https://synora-ai.org/) — presentation and download destination.
 - [Axiom Kernel](https://github.com/devid791/axiom-kernel).
@@ -51,10 +54,10 @@ work; it is not real inference.
 
 ## Status
 
-This first public source export follows desktop runtime baseline `67eed3d` and
-the working-tree cross-platform test corrections. It does not import private
-Git history or operational data. The downloadable packages remain unchanged;
-metadata and documentation in this public source are newer than those packages.
+The source now contains the `0.2.0` release candidate, including browser/computer
+control, composer history, same-turn guidance and clearer GPU reporting. It does
+not import private Git history or operational data. The downloadable packages
+still use baseline `67eed3d`; source changes are not a published binary update.
 
 There is no blanket production GO for every provider and platform. In particular,
 the aligned Linux/Windows packages have an open small-window/150%-zoom layout

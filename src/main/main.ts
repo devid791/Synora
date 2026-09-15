@@ -11,12 +11,15 @@ import {
   Notification,
   nativeTheme,
   clipboard,
+  globalShortcut,
 } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import * as fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { Browser } from "./browser";
+import { NativeComputer } from "./computer-native";
+import { nativeCredentialCipher } from "./native-credential-cipher";
 import { LocalService } from "./service";
 import { lifecycleContent, loginItemHook } from "./native-preferences";
 import { getNativeMessages } from "./native-messages";
@@ -110,17 +113,7 @@ async function start() {
       },
       openAuthorizationUrl: (url) => shell.openExternal(url),
       clipboardWriteText: (text) => clipboard.writeText(text),
-      credentialCipher:
-        safeStorage.isEncryptionAvailable() &&
-        (process.platform !== "linux" ||
-          ["gnome_libsecret", "kwallet", "kwallet5", "kwallet6"].includes(
-            safeStorage.getSelectedStorageBackend(),
-          ))
-          ? {
-              seal: (value) => safeStorage.encryptString(value),
-              open: (value) => safeStorage.decryptString(value),
-            }
-          : undefined,
+      credentialCipher: nativeCredentialCipher(safeStorage, process.platform),
       capabilities: {
         platform: process.platform as "linux" | "win32" | "darwin",
         transport: "desktop-ipc",
@@ -131,6 +124,7 @@ async function start() {
         liveInference: false,
       },
       browser,
+      computer: new NativeComputer(),
       chooseWorkspace: async () => {
         const messages = nativeMessages();
         const result = await dialog.showOpenDialog(window!, {
@@ -173,6 +167,8 @@ async function start() {
     },
     emit,
   );
+  if (!globalShortcut.register("CommandOrControl+Shift+F12", () => { void service?.api.controlStop(); }))
+    emit({ kind: "notice", message: "The emergency control shortcut is unavailable. Use Stop control in Synora." });
   for (const operation of operations)
     ipcMain.handle(`synora:${operation}`, (event, ...args) => {
       if (
@@ -263,6 +259,7 @@ app.on("before-quit", (event) => {
           }
         }
       }
+      globalShortcut.unregister("CommandOrControl+Shift+F12");
       await service?.dispose();
       quitting = true;
       app.quit();

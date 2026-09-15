@@ -1,6 +1,7 @@
 // Controlled real-App renderer fixture. No Core, model, remote catalog or native services.
 import { createRoot } from "react-dom/client";
 import { App } from "../../src/renderer/App";
+import { noControl } from "./control-status";
 import { emptyEngine } from "../../src/renderer/engine-state";
 import { templatePreset, templatePresetId } from "../../src/shared/bot-library";
 import { presetSchema, type AppState, type BotCatalogUpdateStatus, type DesktopAPI, type DesktopEvent, type EngineSnapshot, type Preset, type Result } from "../../src/shared/contracts";
@@ -65,6 +66,7 @@ const imported = (): Preset => ({
   source: { provider: "agency-agents", path: entry.path, revision, blobSha: entry.blobSha, sha256: preview.sha256, license: "MIT", licenseText: preview.licenseText, sourceUrl: preview.sourceUrl, managed: true, updatedAt: 1789050000000, baseHash: "d".repeat(64) },
 });
 const implemented = {
+  controlStatus: noControl,
   state: async () => ok(harness.state),
   capabilities: async () => ok({ platform: options.platform ?? "web", transport: options.platform === "linux" ? "desktop-ipc" : "local-http", nativeDialogs: false, terminal: false, embeddedBrowser: false, engine: "live", liveInference: false }),
   engineSnapshot: async () => ok(snapshot),

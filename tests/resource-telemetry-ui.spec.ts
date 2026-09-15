@@ -17,6 +17,7 @@ for (const [width, theme] of [[1440, "dark"], [390, "light"]] as const) test(`Me
   await expect(page.getByRole("meter", { name: "Context occupancy", exact: true })).toHaveAttribute("aria-valuenow", "25");
   await expect(page.getByRole("meter", { name: "Axiom VRAM", exact: true })).toHaveAttribute("aria-valuenow", "75");
   await expect(page.getByRole("meter", { name: "GPU utilization", exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-resource="GPU utilization"]')).not.toContainText(/GPU task (busy|idle)/);
   await expect(page.locator('[data-resource="Axiom VRAM"]')).toContainText("Last request");
   await expect(page.locator('[data-resource="Axiom VRAM"]')).toContainText("not the sample time");
   await expect(page.locator('[data-rate="decode"] .resource-value')).toHaveText("409.0 tok/s");

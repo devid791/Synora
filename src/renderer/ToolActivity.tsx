@@ -80,7 +80,11 @@ export function ToolActivity({
             <details open>
               <summary>{t("Tool result · untrusted content")}</summary>
               {item.result.content.map((c, i) => (
-                <pre key={i}>
+                c && typeof c === "object" && !Array.isArray(c) && c.type === "image" &&
+                typeof c.data === "string" && c.data.length <= 6000000 &&
+                (c.mimeType === "image/png" || c.mimeType === "image/jpeg") && /^[A-Za-z0-9+/=]+$/.test(c.data)
+                ? <img key={i} src={`data:${c.mimeType};base64,${c.data}`} alt={item.tool} style={{ maxWidth: "100%", maxHeight: 420, objectFit: "contain" }} />
+                : <pre key={i}>
                   {c &&
                   typeof c === "object" &&
                   !Array.isArray(c) &&

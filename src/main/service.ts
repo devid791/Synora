@@ -1,4 +1,6 @@
 import { basename, dirname, join } from "node:path";
+import { ComputerUse } from "./computer-use";
+import { ControlMcp } from "./control-mcp";
 import { sampleHostMemory } from "./local-resource-metrics";
 import { GpuCollectorClient } from "./gpu-collector-client";
 import { workspaceOverlap } from "./workspace-lock";
@@ -126,6 +128,7 @@ import {
 } from "../shared/contracts";
 import { validateOperation, type Operation } from "../shared/operations";
 export interface BrowserService {
+  inspect?: import("../shared/computer-use").BrowserAutomation["inspect"];
   open(url: string): BrowserTab[] | Promise<BrowserTab[]>;
   navigate(id: string, url: string): void | Promise<void>;
   action(
@@ -158,8 +161,11 @@ export interface Host extends NativePreferenceHost {
   importPreset(): Promise<unknown | null>;
   exportPreset(value: unknown, name: string): Promise<boolean>;
   browser: BrowserService;
+  computer?: import("../shared/computer-use").ComputerAdapter;
 }
 export class LocalService {
+  private control: ComputerUse;
+  private controlMcp: ControlMcp;
   private agencyCatalog: AgencyCatalog;
   private botUpdates: BotCatalogUpdater;
   private pluginDirectory: PluginDirectory;
@@ -273,6 +279,15 @@ export class LocalService {
       resourceKey: (task) => this.workerWorkspace(task),
       resourcesConflict: workspaceOverlap,
     });
+    this.control = new ComputerUse(host.browser, host.computer, () => {
+      if (this.engine?.mode !== "live") return null;
+      const snapshot = this.engine.snapshot();
+      if (!["running", "waiting"].includes(snapshot.status) || !snapshot.conversationId || !snapshot.threadId || !snapshot.turnId) return null;
+      const state = this.store.read(), conversation = state.conversations.find(c => c.id === snapshot.conversationId);
+      return { conversationId: snapshot.conversationId, threadId: snapshot.threadId, turnId: snapshot.turnId,
+        permission: conversation?.defaults?.permission ?? conversation?.binding?.permission ?? "ask", mode: state.preferences.mode };
+    }, state => emit({ kind: "control", state }));
+    this.controlMcp = new ControlMcp(this.control);
     this.engine = this.makeEngine(this.store.read().engine, 0);
     const ok =
       <T>(fn: (...args: any[]) => T | Promise<T>) =>
@@ -291,6 +306,18 @@ export class LocalService {
         }
       };
     this.api = {
+      controlStatus: ok(() => this.control.availability()),
+      controlConfigure: ok(async (grant) => {
+        if (!this.store.read().conversations.some(c => c.id === grant.conversationId)) throw Error("Unknown conversation");
+        if (["running", "waiting"].includes(this.engine.snapshot().status)) throw Error("Finish the active turn before enabling control; Stop control is always available");
+        await this.controlMcp.start();
+        const result = await this.control.configure(grant);
+        this.controlMcp.rotate();
+        if (this.engine.mode === "live") this.engine.invalidateIntegrations();
+        return result;
+      }),
+      controlApprove: ok((id, allow) => this.control.approve(id, allow)),
+      controlStop: ok(() => this.control.stop()),
       orchestrationConfigure: ok((id, plan) =>
         this.configureOrchestration(id, plan),
       ),
@@ -693,7 +720,10 @@ export class LocalService {
       saveDraft: ok((id, text) => this.store.draft(id, text)),
       conversationPermission: ok((id, permission) => {
         this.requireAccountIdle();
+        const conversation = this.store.read().conversations.find(c => c.id === id);
+        const previous = conversation?.defaults?.permission ?? conversation?.binding?.permission ?? "ask";
         const state = this.store.conversationPermission(id, permission);
+        if (id && previous !== permission) this.control.permissionChanged(id);
         this.emit({ kind: "resync" });
         return state;
       }),
@@ -889,6 +919,8 @@ export class LocalService {
       }),
       engineStart: ok(async (id, text, scenario, busy?: BusySubmission) => {
         if (busy) return this.submitBusy(id, text, busySubmissionSchema.parse(busy));
+        if (["running", "waiting"].includes(this.engine.snapshot().status))
+          throw Error("Finish the active turn or use Send now / Queue before starting another turn");
         this.requireAuthorizationIdle();
         if (this.configuring)
           throw new Error("Engine configuration is being applied");
@@ -926,6 +958,13 @@ export class LocalService {
             const stored = await this.images.read(id, image);
             images.push({ type: "localImage", path: stored.path });
           }
+          if (this.engine.mode === "live" &&
+            (conversation.defaults?.permission ?? conversation.binding?.permission ?? "ask") === "full" &&
+            await this.control.prepareFullAccess(id)) {
+            await this.controlMcp.start();
+            this.controlMcp.rotate();
+            this.engine.invalidateIntegrations();
+          }
           const snapshot =
             this.engine.mode === "live"
               ? await this.engine.start(id, text, scenario, images)
@@ -937,6 +976,7 @@ export class LocalService {
         }
       }),
       engineCancel: ok(async () => {
+        this.control.stop();
         this.queueEpoch++;
         this.holdQueuedMessages();
         const owner = this.engine.snapshot().conversationId;
@@ -1558,6 +1598,10 @@ export class LocalService {
       this.configuring = false;
     }
   }
+  private controlIntegrations(values: Integration[]) {
+    return [...values.filter(v => v.kind !== "provider" && v.id !== "internal-computer-use"),
+      ...(this.controlMcp.integration ? [this.controlMcp.integration] : [])];
+  }
   private makeEngine(
     config: EngineConfig,
     initialSequence: number,
@@ -1633,9 +1677,7 @@ export class LocalService {
                       ? null
                       : s.preferences.context,
                     mode: s.preferences.mode,
-                    integrations: s.integrations.filter(
-                      (v) => v.kind !== "provider",
-                    ),
+                    integrations: this.controlIntegrations(s.integrations),
                   };
                 },
               },
@@ -1684,7 +1726,7 @@ export class LocalService {
             agentHistory: s.agentHistory.filter(
               (a) => !a.simulated && a.parentId === c.binding?.threadId,
             ),
-            integrations: s.integrations.filter((v) => v.kind !== "provider"),
+            integrations: this.controlIntegrations(s.integrations),
           };
         },
         bind: (id, binding) => {
@@ -2356,6 +2398,7 @@ export class LocalService {
   }
   async dispose() {
     this.disposed = true;
+    await this.controlMcp.dispose();
     await this.botUpdates.dispose();
     await this.pluginDirectoryUpdates.dispose();
     this.queueEpoch++;

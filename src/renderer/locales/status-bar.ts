@@ -2,6 +2,72 @@ import type { Messages } from "../i18n";
 
 // Italian, French, German, Spanish, Portuguese (Portugal), Dutch.
 export const messages: Messages = {
+  "Server GPU": [
+    "GPU server",
+    "GPU serveur",
+    "Server-GPU",
+    "GPU servidor",
+    "GPU servidor",
+    "Server-GPU",
+  ],
+  "GPU telemetry setup required": [
+    "Telemetria GPU da configurare",
+    "Télémétrie GPU à configurer",
+    "GPU-Telemetrie einrichten",
+    "Configurar telemetría GPU",
+    "Configurar telemetria GPU",
+    "GPU-telemetrie instellen",
+  ],
+  "GPU telemetry unavailable": [
+    "Telemetria GPU non disponibile",
+    "Télémétrie GPU indisponible",
+    "GPU-Telemetrie nicht verfügbar",
+    "Telemetría GPU no disponible",
+    "Telemetria GPU indisponível",
+    "GPU-telemetrie niet beschikbaar",
+  ],
+  "GPU sample stale": [
+    "Dato GPU non aggiornato",
+    "Mesure GPU périmée",
+    "GPU-Messwert veraltet",
+    "Muestra GPU desactualizada",
+    "Amostra GPU desatualizada",
+    "GPU-meting verouderd",
+  ],
+  "This client needs a trusted GPU collector connection for the selected Axiom provider. Inference does not depend on telemetry.":
+    [
+      "Questo client richiede una connessione attendibile al collector GPU per il provider Axiom selezionato. L’inferenza non dipende dalla telemetria.",
+      "Ce client nécessite une connexion de confiance au collecteur GPU du fournisseur Axiom sélectionné. L’inférence ne dépend pas de la télémétrie.",
+      "Dieser Client benötigt eine vertrauenswürdige GPU-Collector-Verbindung für den gewählten Axiom-Anbieter. Inferenz ist unabhängig von Telemetrie.",
+      "Este cliente necesita una conexión de confianza al recopilador GPU del proveedor Axiom seleccionado. La inferencia no depende de la telemetría.",
+      "Este cliente requer uma ligação fiável ao coletor GPU do fornecedor Axiom selecionado. A inferência não depende da telemetria.",
+      "Deze client heeft een vertrouwde GPU-collectorverbinding nodig voor de geselecteerde Axiom-provider. Inferentie is niet afhankelijk van telemetrie.",
+    ],
+  "Axiom server · {host}": [
+    "Server Axiom · {host}",
+    "Serveur Axiom · {host}",
+    "Axiom-Server · {host}",
+    "Servidor Axiom · {host}",
+    "Servidor Axiom · {host}",
+    "Axiom-server · {host}",
+  ],
+  "Client application · {platform}": [
+    "Applicazione client · {platform}",
+    "Application cliente · {platform}",
+    "Client-Anwendung · {platform}",
+    "Aplicación cliente · {platform}",
+    "Aplicação cliente · {platform}",
+    "Clientapplicatie · {platform}",
+  ],
+  "Sensors come from the Axiom host, which may be a different computer. Host-wide usage does not identify which GPU this conversation uses.":
+    [
+      "I sensori provengono dall’host Axiom, che può essere un altro computer. L’utilizzo dell’intero host non identifica la GPU usata da questa conversazione.",
+      "Les capteurs proviennent de l’hôte Axiom, qui peut être un autre ordinateur. L’usage global n’identifie pas le GPU utilisé par cette conversation.",
+      "Die Sensoren stammen vom Axiom-Host, möglicherweise einem anderen Computer. Die Host-Auslastung identifiziert nicht die GPU dieses Gesprächs.",
+      "Los sensores proceden del host Axiom, que puede ser otro equipo. El uso global no identifica la GPU de esta conversación.",
+      "Os sensores provêm do anfitrião Axiom, que pode ser outro computador. A utilização global não identifica a GPU desta conversa.",
+      "De sensoren komen van de Axiom-host, mogelijk een andere computer. Hostbreed gebruik identificeert niet de GPU van dit gesprek.",
+    ],
   "Session status": [
     "Stato della sessione",
     "État de la session",

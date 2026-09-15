@@ -1,6 +1,6 @@
 {
   "name": "synora-harness-desktop",
-  "version": "0.1.0-foundation.2",
+  "version": "0.2.0",
   "private": true,
   "author": {
     "name": "Synora"
@@ -71,6 +71,7 @@
       "package.json"
     ],
     "asarUnpack": [
+      "dist/synora-computer-macos",
       "node_modules/node-pty/**/*"
     ],
     "linux": {

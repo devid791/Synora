@@ -16,6 +16,7 @@ import { join, resolve } from "node:path";
 import { extract, list, type ReadEntry } from "tar";
 import lock from "../../docs/core-runtime-lock.json" with { type: "json" };
 import payloads from "../../docs/core-runtime-payloads.json" with { type: "json" };
+import legacy from "../../docs/core-runtime-legacy.json" with { type: "json" };
 import { PROTOCOL_VERSION } from "../shared/contracts";
 
 export interface CorePackage {
@@ -34,7 +35,7 @@ export interface CoreSelection {
 export function corePackage(
   key = `${process.platform}-${process.arch}`,
 ): CorePackage {
-  if (!Object.hasOwn(lock.targets, key) || lock.version !== PROTOCOL_VERSION)
+  if (!Object.hasOwn(lock.targets, key) || lock.protocolVersion !== PROTOCOL_VERSION)
     throw new Error(
       `No qualified Core package for ${key} / ${PROTOCOL_VERSION}`,
     );
@@ -44,6 +45,19 @@ export function corePackage(
     version: lock.version,
     files: payloads[platform] as unknown as CorePackage["files"],
   };
+}
+/** Retained exact baseline for existing selections and genuine rollback. */
+export function legacyCorePackage(key = `${process.platform}-${process.arch}`): CorePackage {
+  if (!Object.hasOwn(legacy.targets, key) || legacy.protocolVersion !== PROTOCOL_VERSION)
+    throw new Error(`No qualified legacy Core package for ${key}`);
+  return { ...legacy.targets[key as keyof typeof legacy.targets], version: legacy.version } as unknown as CorePackage;
+}
+export const BUNDLED_CORE_VERSION = lock.version;
+/** Default managed execution follows the bundle, not the generated schema
+ * version. An explicitly injected legacy executable still needs its original
+ * pin, unless the caller supplies a qualified runtime selection. */
+export function selectedCoreVersion(options: { runtime?: CoreSelection; executable?: string }) {
+  return options.runtime?.version ?? (options.executable ? PROTOCOL_VERSION : BUNDLED_CORE_VERSION);
 }
 export async function sha256File(path: string) {
   const hash = createHash("sha256");
@@ -328,7 +342,7 @@ export async function installCore(
   }
 }
 const inflight = new Map<string, Promise<string>>();
-export async function managedCore(stateDirectory: string) {
+export async function managedCore(stateDirectory: string, version = BUNDLED_CORE_VERSION) {
   const runtime = process as NodeJS.Process & {
     resourcesPath?: string;
     defaultApp?: boolean;
@@ -342,10 +356,15 @@ export async function managedCore(stateDirectory: string) {
   const cache =
     process.env.SYNORA_CORE_CACHE ||
     join(resolve(stateDirectory), "core-runtime");
-  const spec = corePackage(),
-    key = `${resolve(archives)}\0${resolve(cache)}`;
+  const spec = version === BUNDLED_CORE_VERSION ? corePackage() : legacyCorePackage();
+  if (version !== spec.version) throw new Error("Unknown bundled Core version");
+  // Keep the previous flat archive path for existing caches and offline rollback.
+  // The new bootstrap lives in a versioned directory; neither archive overwrites the other.
+  const archive = spec.version === legacy.version
+    ? join(archives, spec.file) : join(archives, spec.version, spec.file);
+  const key = `${resolve(archive)}\0${resolve(cache)}`;
   if (inflight.has(key)) return inflight.get(key)!;
-  const task = installCore(join(archives, spec.file), cache, spec);
+  const task = installCore(archive, cache, spec);
   inflight.set(key, task);
   try {
     return await task;

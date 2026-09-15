@@ -639,6 +639,12 @@ input.settings-switch:disabled { cursor: wait; opacity: .5; }
 .queued-message[data-queue-status="held"] strong { color: var(--warning); }
 .queued-message p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0 0; line-height: 1.45; }
 .busy-message-status { color: var(--muted); font-size: 11px; margin: 6px 0 0; flex-shrink: 0; }
+.busy-message-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; flex-shrink: 0; }
+.busy-message-actions button { padding: 5px 9px; font-size: 12px; min-height: 30px; }
+.busy-message-actions button svg { width: 14px; height: 14px; }
+.busy-message-actions .busy-send-now { color: var(--accent); }
+.busy-message-receipt { color: var(--muted); font-size: 11px; margin: 6px 0 0; flex-shrink: 0; }
+.busy-message-actions, .busy-message-status, .busy-message-receipt, .queued-messages { width: 100%; max-width: 900px; margin-left: auto; margin-right: auto; }
 @media (max-width: 750px) {
   .general-setting-row { align-items: flex-start; flex-direction: column; gap: 14px; padding: 18px 0; }
   .general-setting-row select, .general-setting-control { width: 100%; max-width: 100%; }
@@ -1835,8 +1841,8 @@ footer > span {
   .adaptive-starters .starter-grid > button > svg { width: 14px; height: 14px; }
 }
 @media (max-width: 700px) {
-  .topbar { flex-wrap: nowrap; gap: 6px; padding: 6px 10px; }
-  .topbar-heading { gap: 6px; }
+  .topbar { flex-wrap: wrap; gap: 6px; padding: 6px 10px; }
+  .topbar-heading { gap: 6px; flex: 1 1 100%; }
   .topbar .actions { flex-wrap: nowrap; gap: 6px; }
   .topbar .badge { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
   .tutor-entry { flex-direction: row; align-items: center; padding: 6px 8px; }
@@ -1924,8 +1930,11 @@ footer.status-bar {
 .status-activity[data-status="failed"] > svg, .status-activity[data-status="disconnected"] > svg { color: var(--offline); }
 .status-elapsed { flex-shrink: 0; }
 .status-agents { overflow: hidden; text-overflow: ellipsis; }
-.status-gpu { grid-area: gpu; border-left: 1px solid var(--line); padding-left: 12px; }
+.status-gpu { grid-area: gpu; border-left: 1px solid var(--line); padding-left: 12px; max-width: 450px; }
 .status-gpu > span { overflow: hidden; text-overflow: ellipsis; }
+.status-gpu-readout { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.status-gpu-name { color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.status-gpu-scope, .status-gpu-load, .status-gpu-memory { flex-shrink: 0; }
 .status-activity > svg, .status-gpu > svg { flex-shrink: 0; }
 .status-details-button {
   grid-area: details; display: inline-flex; align-items: center; justify-content: center;
@@ -1951,6 +1960,8 @@ footer.status-bar {
 .telemetry-values { display: grid; gap: 4px; }
 .telemetry-values > span { min-width: 0; overflow-wrap: anywhere; }
 .telemetry-values .app-server-status { white-space: normal; }
+.telemetry-caption { display: block; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.telemetry-gpu-device { padding-block: 4px; }
 @container session-status (max-width: 980px) {
   .status-gpu-memory { display: none; }
   .status-connection { max-width: 280px; }
@@ -1958,6 +1969,8 @@ footer.status-bar {
 }
 @container session-status (max-width: 760px) {
   .status-agents { display: none; }
+  .status-gpu-scope { display: none; }
+  .status-gpu-name { max-width: 150px; }
   .live-telemetry-summary { gap: 8px; padding-inline: 10px; }
   .status-activity, .status-gpu { padding-left: 8px; gap: 6px; }
 }
@@ -1972,6 +1985,7 @@ footer.status-bar {
   .status-activity { padding-left: 0; border: 0; }
   .status-activity-label { flex: 1; }
   .status-gpu > svg { display: none; }
+  .status-gpu { max-width: 52cqw; }
   .modal-dialog:has(.telemetry-details) { bottom: 70px; max-height: calc(100% - 94px); }
 }
 /* Keep the recent-chat strip inside the compact navigation; desktop minimum

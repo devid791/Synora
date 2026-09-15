@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { controlGrantSchema } from "./computer-use";
 import { conversationPatchSchema } from "./conversation-management";
 import { busySubmissionSchema, userPreferenceFields } from "./user-preferences";
 import { permissionModeSchema } from "./permission-mode";
@@ -31,6 +32,10 @@ const rect = z
   })
   .strict();
 export const operationSchemas = {
+  controlStatus: z.tuple([]),
+  controlConfigure: z.tuple([controlGrantSchema]),
+  controlApprove: z.tuple([z.string().uuid(), z.boolean()]),
+  controlStop: z.tuple([]),
   clipboardWriteText: z.tuple([z.string().max(4 * 1024 * 1024)]),
   conversationUpdate: z.tuple([id, conversationPatchSchema]),
   conversationPermission: z.tuple([id.nullable(), permissionModeSchema]),

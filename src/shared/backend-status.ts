@@ -1,6 +1,15 @@
 import { z } from "zod";
 
 const count = z.number().int().nonnegative().safe();
+export const runtimeProgressSchema = z.object({
+  scope: z.literal("current_request_observed_work_not_durable_commit"),
+  phase: z.string(),
+  revision: count,
+  prefill_tokens_processed: count,
+  prefill_tokens_total: count,
+  generated_tokens: count,
+  seconds_since_advance: z.number().finite().nonnegative(),
+});
 export const runtimeStatusSchema = z.object({
   schema: z.literal("axiom_runtime_status_v1"),
   status: z.literal("pass"),
@@ -10,6 +19,7 @@ export const runtimeStatusSchema = z.object({
   generation_busy: z.boolean(),
   active_request_sequence: count.nullable(),
   active_session_id: z.string().nullable(),
+  active_request_progress: runtimeProgressSchema.nullable().optional(),
   http_workers_active: count,
   generation_queue_capacity: count,
   generation_scheduler: z.string(),

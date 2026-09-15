@@ -1,16 +1,16 @@
 {
   "linux-x64": {
     "bin/codex": [
-      258659424,
-      "56ef98ab4032d317ab26e9b5e5a175650717351edb16ed9cde0cb6d1734d62da"
+      262858016,
+      "3188814c35471432d4123203e0eb38e5bddc60226e3d7ddf0e59e649ea140022"
     ],
     "bin/codex-code-mode-host": [
-      69460032,
-      "3e85d67471825f73d02ff5f7e047ca1f6ca8caa3f59e4c6e8d9ca6ca7302cb45"
+      69431360,
+      "0c57be435e73b70d9106c850d751cd259a7f04da958a453d7ef59090d82b70f1"
     ],
     "codex-package.json": [
       205,
-      "43f8735a93a7947c6dc082c550d2ff2d795fccfd1c7eb27c93aa91cbead1e3f4"
+      "b039964d28d57b2a7e929ee9986303582501c7cc9787f6c018b6d3c7b35c87d7"
     ],
     "codex-path/rg": [
       5408904,
@@ -18,7 +18,7 @@
     ],
     "codex-resources/bwrap": [
       529776,
-      "77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c"
+      "01fb705f067bd5365b63d8ad2323a61c8d007733ca5e649437e086f3fb9935d8"
     ],
     "codex-resources/zsh/bin/zsh": [
       898480,
@@ -27,50 +27,50 @@
   },
   "darwin-arm64": {
     "bin/codex": [
-      220584000,
-      "b973d440acac501fd2594a43e7ca9ce41e0a65b9dfb28d0d7a7837c99e1261e3"
+      222655232,
+      "4f85982624b3898c8991cb80c0981b2aa71070e3537046c9a95950318a95afcc"
     ],
     "bin/codex-code-mode-host": [
-      62767552,
-      "d8a2222e017342718d16a5dbe092921c628961f812f62f42036b8d960e1ffe56"
+      62786144,
+      "426d73aaeb2aeef45e98b5add99e8ef9594a31673d281489bb2cb06b38c27423"
     ],
     "codex-package.json": [
       200,
-      "d9ca6b160a46bf8e06748df83ccadb91418ded2d1c35045518b7305f866c9a54"
+      "6bace96c38debc466a94cd71d48464df1b1dc27a4ac75d8cebbcb2b6a3a6540c"
     ],
     "codex-path/rg": [
       4030432,
-      "3969d598288585478bd9b2fd6c9f7e120b711cf96c5a03844d0197ea6abec346"
+      "6bbb665c5a40785e74c7ccf1c2e606efa7e70b09540c1e00787c3f88827e668d"
     ],
     "codex-resources/zsh/bin/zsh": [
       754208,
-      "712ebaa416a7505fe6719ba99440ae3125423ce46d42d0174963553d81f3f8f1"
+      "25649b16e12a7b1b26686a9553d8a141866ee445319fddb5263d57784f0fd10b"
     ]
   },
   "win32-x64": {
     "bin/codex-code-mode-host.exe": [
-      72475952,
-      "deaebc21f354f151fcebeac46e12c6e8c4ef75ee448e25e3577502074e04b8d9"
+      72496432,
+      "7b4987007702973dfeb49ec9a0c11f737488890e208ccb04f7a147769c4bb1f1"
     ],
     "bin/codex.exe": [
-      295408944,
-      "444a3f0008050605cae73cd9b7a2dcac61294062dfaab56dd20430fd6498518b"
+      298169136,
+      "be96b992178b1e467c225800da0d65f2c86d5eba1ef0b14632f65db381cbdfde"
     ],
     "codex-package.json": [
       215,
-      "58aa5bc41fd09632f76a1bf63a711ab0fe18c80630bcd71538bfe40e4db1b502"
+      "c8a470c330ce5a399f0de0421bcf2cac102047f5277b6b5f86b1e29f16859629"
     ],
     "codex-path/rg.exe": [
       4218880,
       "14231169855ec5205cf5a1b6f1db358ff4aed4247c86b69ce8aae647c77f6680"
     ],
     "codex-resources/codex-command-runner.exe": [
-      8204592,
-      "3eb267dc1f0d1d80efeacc26a211f26ed0f414466d32a2aa7304a8a0beec170c"
+      8218416,
+      "a57ca8beb786a05f36c97309e8a716610c70ced9946dc1437bbbaf4566c0c403"
     ],
     "codex-resources/codex-windows-sandbox-setup.exe": [
-      15413040,
-      "0c3eeb7cee8d2bc4c8644def3c818e8b06760979572dcedc919c38d0f38f64c4"
+      15467312,
+      "ea27f90a0746e2464a829cd6e1de0dcafb77c8be603de899661e8c006ef33937"
     ]
   }
 }

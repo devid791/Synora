@@ -27,11 +27,12 @@ import {
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
-import { PROTOCOL_VERSION } from "../shared/contracts";
 import type { CoreUpdateStatus } from "../shared/core-update";
 import {
   installCore,
   managedCore,
+  BUNDLED_CORE_VERSION,
+  legacyCorePackage,
   sha256File,
   type CoreSelection,
 } from "./core-runtime";
@@ -77,8 +78,8 @@ const filesSchema = z.record(
   z.string(),
   z.tuple([z.number().int().nonnegative(), z.string().regex(/^[a-f0-9]{64}$/)]),
 );
-const baseline = (): State => ({
-  active: { version: PROTOCOL_VERSION, generation: null },
+const baseline = (version = BUNDLED_CORE_VERSION): State => ({
+  active: { version, generation: null },
   previous: null,
   recoveryId: null,
   automatic: true,
@@ -156,6 +157,7 @@ export type CoreUpdaterOptions = {
   available?: readonly string[];
   probe?: (executable: string, version: string, home: string) => Promise<void>;
   bundled?: () => Promise<string>;
+  bundledVersion?: string;
   archive?: (
     release: QualifiedCore,
     directory: string,
@@ -248,12 +250,12 @@ export class CoreUpdater {
     try {
       this.state = existsSync(this.path)
         ? stateSchema.parse(JSON.parse(readFileSync(this.path, "utf8")))
-        : baseline();
+        : baseline(options.bundledVersion);
       this.lookup(this.state.active.version);
       this.checks = this.state.checks;
       if (this.state.message) this.message = this.state.message;
     } catch (e) {
-      this.state = baseline();
+      this.state = baseline(options.bundledVersion);
       this.fault = `Cannot read the saved runtime selection; no silent fallback: ${errorText(e)}`;
     }
   }
@@ -314,8 +316,10 @@ export class CoreUpdater {
     return { version, executable: () => this.executable(version) };
   }
   private executable(version: string) {
-    if (version === PROTOCOL_VERSION)
+    if (version === (this.options.bundledVersion ?? BUNDLED_CORE_VERSION))
       return this.options.bundled?.() ?? managedCore(this.root);
+    if (!this.options.bundled && version === legacyCorePackage().version)
+      return managedCore(this.root, version);
     const spec = this.lookup(version).package;
     return installCore(
       join(this.root, "runtime-updates", "archives", spec.version, spec.file),
@@ -327,7 +331,7 @@ export class CoreUpdater {
     const eligible =
       (
         this.options.available ??
-        qualifiedCoreUpdates.map((v) => v.package.version)
+        [BUNDLED_CORE_VERSION, ...qualifiedCoreUpdates.map((v) => v.package.version)]
       )
         .filter((v) => {
           try {

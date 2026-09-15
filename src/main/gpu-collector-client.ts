@@ -13,6 +13,11 @@ const connection = z.object({
 }).strict();
 const registrySchema = z.array(connection).max(32);
 type Connection = z.infer<typeof connection>;
+const notConfigured = (): BackendProbe<GpuTelemetry> => ({
+  state: "unavailable", code: "GPU_NOT_CONFIGURED",
+  message: "No GPU collector is configured for this Axiom provider on this client. Configure a trusted collector connection; inference is independent.",
+  observedAt: Date.now(), durationMs: 0, httpStatus: null,
+});
 
 /** Host-owned private registry; no token/certificate readback to renderer or remote content.
  * Dedicated telemetry token is bound to exact configured HTTPS URL and CA. */
@@ -34,11 +39,12 @@ export class GpuCollectorClient {
       if (matches.length > 1) throw Error();
       settings = matches[0];
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === "ENOENT") return;
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return notConfigured();
       return { state: "unavailable", code: "GPU_CONFIG", message: "GPU collector configuration is unavailable or invalid.",
         observedAt: Date.now(), durationMs: 0, httpStatus: null };
     }
-    if (!settings || this.closed || epoch !== this.epoch) return;
+    if (this.closed || epoch !== this.epoch) return;
+    if (!settings) return notConfigured();
     const start = Date.now(); let httpStatus: number | null = null;
     const controller = new AbortController(); this.pending.add(controller);
     if (this.closed) controller.abort();

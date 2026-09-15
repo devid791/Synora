@@ -410,9 +410,13 @@ test("DeepSeek cannot complete with malformed arguments, unknown tools or a trun
     await assert.rejects(() => convert(e, frames), { name: /Error/ }, bad);
   }
 });
-test("DeepSeek private bridge preserves upstream status, redacts credentials and closes on deadline", async (t) => {
-  let mode = "error",
-    closed = false;
+test("DeepSeek private bridge preserves upstream status, redacts credentials and closes on deadline", { timeout: 10000 }, async (t) => {
+  let mode = "error";
+  let resolveClosed!: () => void;
+  const closed = new Promise<void>(resolve => { resolveClosed = resolve; });
+  // Freeze the bridge's deadline while real loopback I/O reaches the state
+  // under test; CPU scheduling must not choose a different timeout branch.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const endpoint = await server(t, (req: any, res: any) => {
     assert.equal(req.headers.authorization, "Bearer private-fixture-key");
     if (mode === "error") {
@@ -423,7 +427,7 @@ test("DeepSeek private bridge preserves upstream status, redacts credentials and
       res.write(
         'event: response.created\ndata: {"type":"response.created","response":{"id":"r","status":"in_progress"}}\n\n',
       );
-      res.on("close", () => (closed = true));
+      res.once("close", resolveClosed);
     }
   });
   const b = await deepSeekBridge({
@@ -450,9 +454,18 @@ test("DeepSeek private bridge preserves upstream status, redacts credentials and
   assert.match(text, /REDACTED/);
   assert.ok(!text.includes("private-fixture-key"));
   mode = "hold";
+  // Under full-suite load, 100 real milliseconds can expire before headers,
+  // legitimately returning a finite error body instead of a broken SSE.
+  // Prove streaming began, then expire the unchanged production timer.
   const held = await send();
-  await assert.rejects(() => held.text());
-  for (let i = 0; i < 40 && !closed; i++)
-    await new Promise((r) => setTimeout(r, 5));
-  assert.equal(closed, true);
+  assert.equal(held.status, 200);
+  const reader = held.body!.getReader();
+  const first = await reader.read();
+  assert.equal(first.done, false);
+  assert.match(new TextDecoder().decode(first.value), /response\.created/);
+  const interrupted = assert.rejects(() => reader.read());
+  t.mock.timers.tick(100);
+  await interrupted;
+  await closed;
+  t.mock.timers.reset();
 });

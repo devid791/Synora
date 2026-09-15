@@ -7,6 +7,7 @@ import {
 } from "playwright-core";
 import { randomUUID } from "node:crypto";
 import { browserURL } from "../shared/browser-url";
+import { browserInspection } from "../main/browser-inspection";
 import type { BrowserService } from "../main/service";
 import type {
   BrowserTab,
@@ -236,6 +237,11 @@ export class WebBrowser implements BrowserService {
       dataURL: `data:image/jpeg;base64,${bytes.toString("base64")}`,
       ...size,
     };
+  }
+  async inspect(id: string) {
+    const entry = this.get(id);
+    if (entry.tab.loading) throw Error("Page is still loading; wait for navigation before observing");
+    return entry.page.evaluate(browserInspection) as Promise<{ url: string; title: string; text: string; elements: unknown[] }>;
   }
   async input(id: string, input: BrowserInput) {
     const page = this.get(id).page;

@@ -4,6 +4,10 @@ Your guide to installing Synora, connecting a model and doing real work with fil
 
 This manual covers the 67eed3d desktop source baseline and its aligned Linux, Windows and local web builds. Menu labels below use English. Platform support, provider access and available tools depend on your installation. Read the known limitations before relying on Synora for important work.
 
+The repository also contains newer `0.2.0` source-candidate features described
+below where explicitly marked. They are not yet an update to the published
+foundation download packages.
+
 ## Start here
 
 Synora is a workspace around Codex App Server. The app manages your conversations, files and controls; App Server manages model interactions and tool execution; your selected provider supplies the model. These are separate components. An active App Server connection does not by itself mean your model account or Axiom endpoint is ready.
@@ -161,6 +165,36 @@ When an edit completes, inspect the actual changed file or diff. A model saying 
 The terminal is a real shell on the workspace host. Commands can modify files, contact services and start processes. Close processes you no longer need and check command output and exit status. Never paste secrets into a public bug report to explain a failed command.
 
 In the local web companion, the browser UI is a client of the local service. Files and terminal commands belong to the service host, not to arbitrary files on the browser's computer.
+
+## Browser and computer control (source candidate)
+
+The `0.2.0` source candidate can show a real browser beside the conversation and
+operate permitted application windows on the host running Synora. This is not
+control of the inference server or an arbitrary visitor's computer in web mode.
+Open **Computer & browser** to inspect availability and enable the intended
+capabilities. Ask/Approve modes require scoped site/window and action consent.
+Full access enables available controls without extra Synora approvals unless
+you explicitly stopped or disabled them. OS permissions and protected-window
+restrictions still apply; Synora cannot approve its own or the OS's dialogs.
+
+For readable pages, the model can request text observations with actual controls
+and coordinates. Native `computer_snapshot` also accepts `format=text` for real
+accessibility labels, values and focus; `format=image` is used for graphics or
+unreadable controls. The native default still includes an image. Both keep a
+real local preview and the same fresh, one-use observation requirement. Missing
+accessibility is reported, not invented. Take a new observation after each
+action, navigation, layout or policy change.
+
+Use **Stop control** or the available **Ctrl/Cmd+Shift+F12** emergency shortcut
+to revoke control. Closing the preview panel alone does not stop it. Changing
+permission mode keeps the conversation but invalidates prior read approvals and
+observations. Already delivered clicks or text cannot be undone by stopping.
+
+Desktop prerequisites differ: macOS needs Screen Recording and Accessibility;
+Windows needs an interactive desktop and respects UAC boundaries; Linux native
+control currently requires X11, a window manager, `xdotool` and `xprop`. The
+internal browser remains a separate capability. See [Browser and computer
+control](COMPUTER-USE.md) for exact supported actions and limitations.
 
 ## Inspect reasoning and tool activity
 

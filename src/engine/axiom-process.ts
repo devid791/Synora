@@ -3,7 +3,6 @@ import { promisify } from "node:util";
 import { mkdir, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { PROTOCOL_VERSION } from "../shared/contracts";
 import { AppServerError } from "./app-server-transport";
 import { mcpConfiguration, type CoreConfig } from "./mcp-config";
 import type {
@@ -11,8 +10,9 @@ import type {
   AxiomRequestMetrics,
   ModelCapabilities,
 } from "../shared/contracts";
-import { managedCore } from "./core-runtime";
+import { managedCore, selectedCoreVersion } from "./core-runtime";
 import { bearerHeaders } from "./axiom-auth";
+import { AxiomProgressTracker } from "./axiom-progress";
 import {
   createProcessCatalog,
   processResourceCleanup,
@@ -153,6 +153,7 @@ export async function prepareAxiomProcess(options: {
   models: ModelCapabilities[];
   args: string[];
   cleanup?: () => Promise<void>;
+  hasProgress?: (sessionId: string) => Promise<boolean>;
 }> {
   if (options.context === null)
     throw new Error("Axiom requires an advertised explicit context selection");
@@ -173,10 +174,10 @@ export async function prepareAxiomProcess(options: {
   });
   if (
     result.stdout.trim() !==
-    `codex-cli ${options.runtime?.version ?? PROTOCOL_VERSION}`
+    `codex-cli ${selectedCoreVersion(options)}`
   )
     throw new Error(
-      `This Synora adapter requires qualified Codex ${options.runtime?.version ?? PROTOCOL_VERSION}; the installed executable reports a different version`,
+      `This Synora adapter requires qualified Codex ${selectedCoreVersion(options)}; the installed executable reports a different version`,
     );
   const bearerToken = await options.authorization?.();
   const inventory = await catalog(endpoint, bearerToken),
@@ -195,7 +196,11 @@ export async function prepareAxiomProcess(options: {
     models: inventory.models,
   });
   let bridge: Awaited<ReturnType<typeof axiomContextBridge>> | undefined;
+  let progressStatus: import("./axiom-status").AxiomStatus | undefined;
+  let progressClosed = false;
+  const progressTracker = new AxiomProgressTracker();
   const cleanup = processResourceCleanup(
+    () => { progressClosed = true; progressStatus?.dispose(); },
     () => bridge?.close(),
     processCatalog.cleanup,
   );
@@ -242,6 +247,14 @@ export async function prepareAxiomProcess(options: {
       env,
       models,
       cleanup,
+      hasProgress: async (sessionId: string) => {
+        if (progressClosed) return false;
+        const { AxiomStatus } = await import("./axiom-status");
+        if (progressClosed) return false;
+        progressStatus ??= new AxiomStatus();
+        const status = await progressStatus.read(endpoint, bearerToken);
+        return !progressClosed && status.mode === "live" && progressTracker.accept(status.runtime, sessionId, options.model);
+      },
       args: [
         "app-server",
         "--stdio",

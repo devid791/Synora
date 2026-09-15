@@ -2,6 +2,14 @@ import type { Messages } from "../i18n";
 
 // Italian, French, German, Spanish, Portuguese (Portugal), Dutch.
 export const messages: Messages = {
+  "Up recalls sent messages from an empty field or the start of a single-line draft; Down returns to your draft. Click or type to edit.": [
+    "Su richiama i messaggi inviati dal campo vuoto o dall’inizio di una bozza su una riga; Giù torna alla bozza. Clicca o digita per modificare.",
+    "Haut rappelle les messages envoyés depuis un champ vide ou le début d’un brouillon sur une ligne ; Bas revient au brouillon. Cliquez ou tapez pour modifier.",
+    "Pfeil hoch ruft gesendete Nachrichten aus einem leeren Feld oder am Anfang eines einzeiligen Entwurfs ab; Pfeil runter kehrt zum Entwurf zurück. Zum Bearbeiten klicken oder tippen.",
+    "Arriba recupera mensajes enviados desde un campo vacío o el inicio de un borrador de una línea; Abajo vuelve al borrador. Haz clic o escribe para editar.",
+    "Cima recupera mensagens enviadas a partir de um campo vazio ou do início de um rascunho de uma linha; Baixo regressa ao rascunho. Clique ou escreva para editar.",
+    "Omhoog haalt verzonden berichten op vanuit een leeg veld of het begin van een conceptregel; Omlaag keert terug naar het concept. Klik of typ om te bewerken.",
+  ],
   "Show navigation": ["Mostra barra laterale", "Afficher la barre latérale", "Seitenleiste anzeigen", "Mostrar barra lateral", "Mostrar barra lateral", "Zijbalk tonen"],
   "Hide navigation": ["Nascondi barra laterale", "Masquer la barre latérale", "Seitenleiste ausblenden", "Ocultar barra lateral", "Ocultar barra lateral", "Zijbalk verbergen"],
   "Show files panel": ["Mostra pannello file", "Afficher le panneau des fichiers", "Dateibereich anzeigen", "Mostrar panel de archivos", "Mostrar painel de ficheiros", "Bestandenpaneel tonen"],

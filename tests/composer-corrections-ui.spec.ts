@@ -10,7 +10,7 @@ const png = new Resvg('<svg xmlns="http://www.w3.org/2000/svg" width="80" height
 test.beforeAll(async () => {
   script = (await build({ entryPoints: ["tests/fixtures/engine-pending-ui.tsx"], bundle: true, write: false,
     platform: "browser", format: "iife", loader: { ".css": "empty" }, define: { "process.env.NODE_ENV": '"production"' } })).outputFiles[0].text;
-  css = (await readFile("src/renderer/style.css", "utf8")).replace(/^@import.*$/gm, "");
+  css = (await readFile("src/renderer/style.css", "utf8")).replace(/^@import.*$/gm, "") + "\n" + await readFile("src/renderer/computer-control.css", "utf8");
   logo = await readFile("public/brand/synora.svg", "utf8");
 });
 test.beforeEach(async ({ page, context }) => {
@@ -26,6 +26,89 @@ test.beforeEach(async ({ page, context }) => {
 });
 const input = (p: Page) => p.getByRole("textbox", { name: "Message", exact: true });
 const calls = (p: Page, method: string) => p.evaluate(method => window.enginePending.calls.filter(c => c.method === method), method);
+test("An open browser panel never covers the composer or its Send button at compact desktop sizes",async({page})=>{
+ await input(page).fill('QA_UNSENT compact pane draft');
+ for(const size of [{width:1440,height:900},{width:1024,height:700},{width:843,height:481},{width:740,height:640},{width:672,height:441},{width:390,height:980}]){
+  await page.setViewportSize(size);
+  if(!await page.locator('.computer-control-panel').isVisible())await page.getByRole('button',{name:'Computer & browser',exact:true}).click();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  // A trial click may auto-scroll an offscreen composer into view. The entire
+  // composer and panel header must already fit the visible native viewport.
+  for(const target of [input(page),page.getByRole('button',{name:'Send message',exact:true}),page.getByRole('button',{name:'Close panel',exact:true})]){
+   const box=await target.boundingBox();expect(box).not.toBeNull();
+   expect(box!.y).toBeGreaterThanOrEqual(0);expect(box!.y+box!.height).toBeLessThanOrEqual(size.height);
+   expect(await target.evaluate(el=>{const b=el.getBoundingClientRect();return el.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2));})).toBe(true);
+  }
+  const footer=await page.locator('footer.status-bar').boundingBox();
+  if(footer)expect(footer.y).toBeGreaterThan(size.height/2);
+  await page.getByRole('button',{name:'Send message',exact:true}).click({trial:true,timeout:2500});
+  await input(page).click({trial:true,timeout:2500});
+  await page.getByRole('button',{name:'Close panel',exact:true}).click({trial:true,timeout:2500});
+  if(size.width===843||size.width===390||size.width===672)await page.screenshot({path:`test-results/composer-corrections/control-pane-${size.width}.png`});
+ }
+ expect(await calls(page,'engineStart')).toEqual([]);
+});
+test("Compact browser docking restores navigation and its saved preference without reconfiguring a conversation",async({page})=>{
+ await page.setViewportSize({width:843,height:600});
+ const nav=page.locator('#synora-navigation'),toggle=page.getByTestId('toggle-sidebar');
+ await expect(nav).toBeVisible();
+ await page.getByRole('button',{name:'Computer & browser',exact:true}).click();
+ await expect(nav).toBeHidden();await expect(toggle).toHaveAttribute('aria-expanded','false');
+ await page.getByRole('button',{name:'Close panel',exact:true}).click();
+ await expect(nav).toBeVisible();await expect(toggle).toHaveAttribute('aria-expanded','true');
+ await page.getByRole('button',{name:'Computer & browser',exact:true}).click();
+ await toggle.click();await expect(page.locator('.computer-control-panel')).toHaveCount(0);
+ await expect(nav).toBeVisible();
+ expect(await page.evaluate(()=>window.enginePending.state.preferences.sidebarCollapsed)).toBe(false);
+ expect(await calls(page,'engineConfigure')).toEqual([]);
+ expect(await calls(page,'newConversation')).toEqual([]);
+});
+test("Up/Down recall sent user messages in this chat, preserve the draft and never send or attach anything", async ({ page }) => {
+  await page.evaluate(() => {
+    const w = window.enginePending;
+    w.state.conversations.find(c => c.id === "offline-conversation")!.messages = [
+      { id: "u1", role: "user", text: "First message\nSecond line", simulated: false },
+      { id: "a1", role: "assistant", text: "Do not recall me", simulated: false },
+      { id: "u2", role: "user", text: "Latest message · ciao", simulated: false },
+    ];
+    w.state.revision++; w.event({ kind: "resync" });
+  });
+  await expect(page.locator(".chat-scroll")).toContainText("Latest message · ciao");
+  const field = input(page);
+  await field.focus();
+  await field.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(0, 0));
+  await field.press("ArrowUp"); await expect(field).toHaveValue("Latest message · ciao");
+  await field.press("ArrowUp"); await expect(field).toHaveValue("First message\nSecond line");
+  await field.press("ArrowUp"); await expect(field).toHaveValue("First message\nSecond line");
+  await field.press("ArrowDown"); await expect(field).toHaveValue("Latest message · ciao");
+  await field.press("ArrowDown"); await expect(field).toHaveValue("Retained draft");
+  await field.fill("A multiline\ndraft to edit");
+  await field.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(0, 0));
+  await field.press("ArrowUp"); await expect(field).toHaveValue("A multiline\ndraft to edit");
+  await field.fill(""); await field.press("ArrowUp");
+  await expect(field).toHaveValue("Latest message · ciao");
+  await field.press("ArrowLeft"); await field.press("ArrowDown");
+  await expect(field).toHaveValue("Latest message · ciao");
+  expect(await calls(page, "engineStart")).toEqual([]);
+  expect(await calls(page, "imageAttach")).toEqual([]);
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await field.press("ArrowUp"); await field.press("ArrowDown");
+  await expect(field).toHaveValue("");
+  expect(await page.evaluate(() => window.enginePending.state.conversations.find(c => c.id === "offline-conversation")!.messages.map(m => m.id))).toEqual(["u1", "a1", "u2"]);
+});
+test("A control-service failure does not blank the chat, discard drafts or block independent events", async ({ page }) => {
+  await page.reload();
+  await page.addStyleTag({ content: css });
+  await page.evaluate(() => { window.enginePendingOptions = { controlStatusError: true }; });
+  await page.addScriptTag({ content: script });
+  await expect(input(page)).toHaveValue("Retained draft");
+  await page.getByRole("button", { name: "Computer & browser", exact: true }).click();
+  await expect(page.locator(".computer-control-panel")).toContainText("Controlled control-service failure");
+  await page.evaluate(() => window.enginePending.event({ kind: "notice", message: "Independent notice still delivered" }));
+  await expect(page.locator(".notice").filter({ hasText: "Independent notice still delivered" })).toBeVisible();
+  await expect(input(page)).toHaveValue("Retained draft");
+  expect(await calls(page, "engineStart")).toEqual([]);
+});
 test("Cold renderer restores the last selected older conversation; deleted/archived selections fall back safely", async ({ page }) => {
   await page.getByRole("button", { name: "New conversation", exact: true }).click();
   await expect(input(page)).toHaveValue("");

@@ -21,12 +21,20 @@ import { gunzipSync } from "node:zlib";
 import { create, Unpack } from "tar";
 import {
   corePackage,
+  selectedCoreVersion,
   installCore,
   sha256File,
   verifyCoreArchive,
   verifyCoreInstall,
   type CorePackage,
 } from "../src/engine/core-runtime";
+
+test("Managed Core defaults to the current bundle while explicit qualified/legacy selections retain their exact pins", () => {
+  assert.equal(selectedCoreVersion({}), "0.154.0");
+  assert.equal(selectedCoreVersion({executable:"/owned/legacy-core"}), "0.153.4");
+  assert.equal(selectedCoreVersion({runtime:{version:"0.154.0",executable:async()=>"/owned/current-core"}}), "0.154.0");
+  assert.equal(selectedCoreVersion({runtime:{version:"0.153.4",executable:async()=>"/owned/legacy-core"}}), "0.153.4");
+});
 
 function replaceBuiltin<T extends object, K extends keyof T>(
   t: TestContext,

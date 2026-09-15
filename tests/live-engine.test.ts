@@ -581,13 +581,13 @@ test("Live fixture approvals preserve numeric/string IDs, queue order and exact 
       await engine.start("local", "fixture", "text");
       await until(() => engine.snapshot().status === "waiting");
       const first = engine.snapshot().approval!;
-      assert.equal(first.params.itemId, "item-number");
+      assert.equal("itemId" in first.params && first.params.itemId, "item-number");
       engine.approve(first.id, false);
       // Separate JSONL writes need not arrive in the same read. Wait for the
       // actual second request rather than interpreting IPC scheduling as a queue failure.
       await until(() => !!engine.snapshot().approval);
       const second = engine.snapshot().approval!;
-      assert.equal(second.params.itemId, "item-string");
+      assert.equal("itemId" in second.params && second.params.itemId, "item-string");
       assert.throws(() => engine.approve(first.id, true), /stale/);
       engine.approve(second.id, true);
       await until(() => engine.snapshot().status === "completed");
@@ -601,6 +601,43 @@ test("Live fixture approvals preserve numeric/string IDs, queue order and exact 
       await engine.dispose();
     }
   }
+});
+test("MCP tool consent queues original IDs and respects Ask, Auto-review and Full access without persistence", async()=>{
+  for(const permission of ["ask","auto-review","full"] as const){
+    const t=setup("mcp-approval",{context:()=>({cwd:"/synora-fixture",profile:"ultra-fast",context:262144,permission})});
+    try{
+      await t.engine.start("owned","fixture","text");
+      if(permission!=="full"){
+        await until(()=>t.engine.snapshot().status==="waiting");
+        const first=t.engine.snapshot().approval!;
+        assert.ok("serverName" in first.params);
+        t.engine.approve(first.id,false);
+        await until(()=>!!t.engine.snapshot().approval);
+        t.engine.approve(t.engine.snapshot().approval!.id,true);
+        assert.throws(()=>t.engine.approve(first.id,true),/stale/);
+      }
+      await until(()=>t.engine.snapshot().status==="completed");
+      assert.equal(t.engine.snapshot().approval,null);
+      const message=t.engine.snapshot().items.find(i=>i.type==="agentMessage")!;
+      assert.equal(message.type,"agentMessage");
+      if(message.type!=="agentMessage")throw Error();
+      assert.deepEqual(JSON.parse(message.text),[
+        {id:7,result:{action:permission==="full"?"accept":"decline",content:permission==="full"?{}:null,_meta:null}},
+        {id:"7",result:{action:"accept",content:{},_meta:null}}
+      ]);
+    }finally{await t.engine.dispose();}
+  }
+});
+test("Full access cannot approve an MCP request for a foreign turn",async()=>{
+  const t=setup("mcp-approval-wrong-owner",{context:()=>({cwd:"/synora-fixture",profile:"ultra-fast",context:262144,permission:"full"})});
+  try{await t.engine.start("owned","fixture","text");await until(()=>t.engine.snapshot().status==="completed");const m=t.engine.snapshot().items.find(i=>i.type==="agentMessage")!;assert.equal(m.type,"agentMessage");if(m.type!=="agentMessage")throw Error();assert.equal(JSON.parse(m.text)[0].error.code,-32602);assert.equal(t.engine.snapshot().approval,null);}finally{await t.engine.dispose();}
+});
+test("Core-resolved MCP approval is cleared and cannot be accepted late",async()=>{
+  const t=setup("mcp-approval-resolved");try{
+    await t.engine.start("owned","fixture","text");await until(()=>!!t.engine.snapshot().approval);const first=t.engine.snapshot().approval!.id;
+    await until(()=>t.engine.snapshot().approval?.id!==first);assert.throws(()=>t.engine.approve(first,true),/stale/);
+    await t.engine.cancel();assert.equal(t.engine.snapshot().approval,null);
+  }finally{await t.engine.dispose();}
 });
 test("User questions and turn-scoped permissions retain callback identity, validate answers and clear after completion", async () => {
   for (const accepted of [false, true]) {
@@ -771,6 +808,76 @@ test("Live fixture deadline interrupts upstream and reports a real timeout, not 
   } finally {
     await engine.dispose();
   }
+});
+test("Default idle budget extends for verified owned upstream work, then cancels when that proof stops", async () => {
+  let progressing = true, reads = 0;
+  const t = setup("wait", { turnIdleTimeoutMs: 120 }, async () => ({
+    executable: process.execPath, cwd: process.cwd(), env: process.env, args: [fixture,"wait"], models,
+    hasProgress: async session => { assert.ok(session); reads++; return progressing; },
+  }));
+  try {
+    await t.engine.start("local","wait","text");
+    await until(()=>reads>=3);
+    assert.equal(t.engine.snapshot().status,"running");
+    progressing=false;
+    await until(()=>t.engine.snapshot().status==="failed");
+    assert.equal(t.engine.snapshot().error?.code,"TURN_DEADLINE");
+    assert.match(t.engine.snapshot().error?.message??"",/No progress could be verified/);
+  } finally { await t.engine.dispose(); }
+});
+test("An explicit overall deadline is never extended by upstream activity",async()=>{
+ let reads=0;
+ const t=setup("wait",{turnDeadlineMs:60},async()=>({executable:process.execPath,cwd:process.cwd(),env:process.env,args:[fixture,"wait"],models,hasProgress:async()=>{reads++;return true;}}));
+ try{await t.engine.start("local","wait","text");await until(()=>t.engine.snapshot().status==="failed");assert.equal(reads,0);assert.equal(t.engine.snapshot().error?.code,"TURN_DEADLINE");}
+ finally{await t.engine.dispose();}
+});
+test("A pending liveness probe cannot resurrect a cancelled turn",async()=>{
+ let resolveProgress:((v:boolean)=>void)|undefined;
+ const t=setup("wait",{turnIdleTimeoutMs:60},async()=>({executable:process.execPath,cwd:process.cwd(),env:process.env,args:[fixture,"wait"],models,
+   hasProgress:()=>new Promise<boolean>(r=>{resolveProgress=r;})}));
+ try{
+  await t.engine.start("local","wait","text");await until(()=>!!resolveProgress);
+  await t.engine.cancel();resolveProgress!(true);
+  await new Promise(r=>setTimeout(r,160));
+  assert.equal(t.engine.snapshot().status,"interrupted");assert.equal(t.engine.snapshot().error,null);
+ }finally{await t.engine.dispose();}
+});
+for(const scenario of ["watchdog-progress","watchdog-foreign","watchdog-duplicate"])
+ test(`${scenario}: only new semantic work from the owned Core turn renews the idle timer`,async()=>{
+  const t=setup(scenario,{turnIdleTimeoutMs:200});
+  try{await t.engine.start("local","stream","text");await until(()=>["completed","failed"].includes(t.engine.snapshot().status));
+   assert.equal(t.engine.snapshot().status,scenario==="watchdog-progress"?"completed":"failed");
+  }finally{await t.engine.dispose();}
+ });
+for (const scenario of ["watchdog-child-progress", "watchdog-child-stale", "watchdog-child-foreign", "watchdog-child-duplicate"])
+  test(`${scenario}: only active owned-child semantic work renews the parent idle timer`, async () => {
+    const t = setup(scenario, { turnIdleTimeoutMs: 200 });
+    try {
+      await t.engine.start("local", "delegate", "text");
+      await until(() => ["completed", "failed"].includes(t.engine.snapshot().status));
+      assert.equal(t.engine.snapshot().status, scenario === "watchdog-child-progress" ? "completed" : "failed");
+      if (scenario !== "watchdog-child-progress") assert.equal(t.engine.snapshot().error?.code, "TURN_DEADLINE");
+    } finally { await t.engine.dispose(); }
+  });
+test("Verified child prefill renews the parent's idle budget only while that owned child actually advances", async () => {
+  let progressing = true, childReads = 0;
+  const t = setup("watchdog-child-probe", { turnIdleTimeoutMs: 200 }, async () => ({
+    executable: process.execPath, cwd: process.cwd(), env: process.env,
+    args: [fixture, "watchdog-child-probe"], models,
+    hasProgress: async session => {
+      if (session === "core-child-session") { childReads++; return progressing; }
+      return false;
+    },
+  }));
+  try {
+    await t.engine.start("local", "delegate", "text");
+    await until(() => childReads >= 3 || t.engine.snapshot().status === "failed");
+    assert.equal(t.engine.snapshot().status, "running");
+    assert.ok(childReads >= 3);
+    progressing = false;
+    await until(() => t.engine.snapshot().status === "failed");
+    assert.equal(t.engine.snapshot().error?.code, "TURN_DEADLINE");
+  } finally { await t.engine.dispose(); }
 });
 test("Malformed delta fails instead of silently discarding unknown item data", async () => {
   const { engine } = setup("malformed");

@@ -15,7 +15,7 @@ const reply = (m, result) => send({ id: m.id, result });
 const note = (method, params) => send({ method, params });
 const threadId = scenario === "provider-restore" ? `${process.argv[3]}-thread` : base.id;
 let turnId = "fixture-turn",
-  compactTimer;
+  compactTimer, watchdogTimer;
 const turn = (status, items = []) => ({
   id: turnId,
   status,
@@ -107,6 +107,11 @@ input.on("line", (line) => {
         "\n",
     );
   if ("result" in m || "error" in m) {
+    if (scenario.startsWith("mcp-approval")) {
+      answers.push({id:m.id,result:m.result,error:m.error});
+      if (scenario === "mcp-approval-wrong-owner" || answers.length===2) finish("completed",JSON.stringify(answers));
+      return;
+    }
     if (scenario.startsWith("host-tool")) {
       assert.equal(m.id, "host-rpc-id");
       return finish("completed", JSON.stringify(m));
@@ -246,7 +251,7 @@ input.on("line", (line) => {
       assert.equal(m.params.sandbox, "workspace-write");
       result.approvalsReviewer = "auto_review";
     }
-    if (scenario === "permissions-change" || scenario === "permissions-change-rejected") {
+    if (scenario === "permissions-change" || scenario === "permissions-change-rejected" || scenario.startsWith("mcp-approval")) {
       if (m.method === "thread/resume") assert.equal(m.params.threadId, threadId);
       const policies = {
         ask: ["on-request", "user", "workspace-write"],
@@ -476,6 +481,33 @@ input.on("line", (line) => {
       });
       return;
     }
+    if (scenario.startsWith("watchdog-child-")) {
+      item(collab("spawnAgent"), true);
+      note("turn/started", {threadId:childId,turn:childTurnRecord()});
+      const a={...childMessage,text:""};
+      note("item/started",{threadId:childId,turnId:childTurn,item:a,startedAtMs:1});
+      if(scenario==="watchdog-child-probe")return;
+      let ticks=0;
+      watchdogTimer=setInterval(()=>{
+        ticks++;
+        const id=scenario==="watchdog-child-foreign"?"unrelated-child":childId;
+        const tid=scenario==="watchdog-child-stale"?"old-child-turn":childTurn;
+        if(scenario==="watchdog-child-duplicate")note("item/started",{threadId:id,turnId:tid,item:a,startedAtMs:1});
+        else note("item/agentMessage/delta",{threadId:id,turnId:tid,itemId:a.id,delta:"x"});
+        if(ticks===16){clearInterval(watchdogTimer);childDone=true;note("turn/completed",{threadId:childId,turn:childTurnRecord()});finish();}
+      },50);
+      return;
+    }
+    if (scenario.startsWith("watchdog-")) {
+      const a=assistant("");item(a);let ticks=0;
+      watchdogTimer=setInterval(()=>{
+        ticks++;
+        if(scenario==="watchdog-duplicate")item(a);
+        else note("item/agentMessage/delta",{threadId:scenario==="watchdog-foreign"?"foreign-thread":threadId,turnId,itemId:a.id,delta:"x"});
+        if(ticks===16){clearInterval(watchdogTimer);finish();}
+      },50);
+      return;
+    }
     if (
       scenario === "wait" ||
       scenario === "openai-wait" ||
@@ -538,6 +570,15 @@ input.on("line", (line) => {
         });
       return;
     }
+    if (scenario.startsWith("mcp-approval")) {
+      for (const id of (scenario === "mcp-approval-wrong-owner" ? [7] : [7,"7"])) send({
+        id,method:"mcpServer/elicitation/request",params:{threadId,turnId:scenario==="mcp-approval-wrong-owner"?"foreign-turn":turnId,
+          serverName:"synora_test_web",mode:"form",_meta:{codex_approval_kind:"mcp_tool_call",persist:["session","always"],tool_params:{url:"https://example.com"}},
+          message:'Allow browser_open?',requestedSchema:{type:"object",properties:{}}}
+      });
+      if (scenario==="mcp-approval-resolved")setTimeout(()=>note("serverRequest/resolved",{threadId,requestId:7}),40);
+      return;
+    }
     if (scenario === "approvals" || scenario === "approvals-delayed") {
       for (const id of [7, "7"])
         (scenario === "approvals-delayed" && typeof id === "string"
@@ -576,6 +617,7 @@ input.on("line", (line) => {
     return;
   }
   if (m.method === "turn/interrupt") {
+    clearInterval(watchdogTimer);
     if (scenario.startsWith("busy-")) clearTimeout(compactTimer);
     reply(m, {});
     note("turn/completed", { threadId, turn: turn("interrupted", [user]) });

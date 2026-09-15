@@ -30,6 +30,7 @@ declare global {
     enginePendingOptions?: {
       axiom?: boolean;
       connected?: boolean;
+      controlStatusError?: boolean;
       panels?: boolean;
       preferences?: Partial<AppState["preferences"]>;
       seed?: Partial<Pick<AppState, "agentHistory" | "delegations" | "conversations">>;
@@ -158,7 +159,16 @@ const ok = <T,>(value: T): Result<T> => ({
 });
 const record = (method: string, args: unknown[]) =>
   fixture.calls.push({ method, args: structuredClone(args) });
+const listeners = new Set<(event: DesktopEvent) => void>();
+fixture.event = event => { for (const callback of listeners) callback(event); };
 const implemented = {
+  controlStatus: () => {
+    if (window.enginePendingOptions?.controlStatusError)
+      throw Error("Controlled control-service failure");
+    return Promise.resolve(ok({ grant: null, available: { browser: false, computer: false,
+      reason: "No computer or browser executor in this controlled fixture" },
+      pending: null, activity: [], preview: null }));
+  },
   backendStatus: async () =>
     ok({
       mode: "inactive" as const,
@@ -176,7 +186,7 @@ const implemented = {
       liveInference: false,
     }),
   engineSnapshot: async () => ok(fixture.snapshot),
-  onEvent: callback => { fixture.event = callback; return () => { fixture.event = () => {}; }; },
+  onEvent: callback => { listeners.add(callback); return () => { listeners.delete(callback); }; },
   browserList: async () => ok([]),
   browserLayout: async () => ok(undefined),
   metrics: async () =>

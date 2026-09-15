@@ -20,7 +20,7 @@ test("Dynamic sensor identities, measured zero, multiple cards, null and stale n
     memoryTotalBytes: 8 * 1024 ** 3, temperatureCelsius: 40 });
   const backend = { mode: "live", endpoint: "https://fixture.invalid/v1",
     runtime: { state: "available", observedAt: 10000, data: { generation_busy: false } },
-    gpu: { state: "available", observedAt: 10000, data: { sampledAt: 10000, devices: [make("first", "First GPU", 0)] } } };
+    gpu: { state: "available", observedAt: 10000, data: { sampledAt: 10000, issues: [], devices: [make("first", "First GPU", 0)] } } };
   await page.evaluate(backend => (window as any).gpu.setBackend(backend), backend);
   await expect(page.locator('[data-axiom-activity]')).toHaveText("Axiom idle");
   await expect(page.locator('[data-gpu-live="first"]')).toContainText("First GPU · 0% · VRAM 4/8 GiB · 40 °C");
@@ -31,7 +31,7 @@ test("Dynamic sensor identities, measured zero, multiple cards, null and stale n
   await expect(page.locator('[data-gpu-live="second"]')).toContainText("Second GPU · —");
   await page.evaluate(() => (window as any).gpu.setNow(25000));
   await expect(page.locator('[data-gpu-live]')).toHaveCount(0);
-  await expect(page.locator('[data-gpu-unavailable]')).toHaveText("GPU: live sample unavailable");
+  await expect(page.locator('[data-gpu-unavailable]')).toHaveText("GPU sample stale");
   await page.evaluate(() => { (window as any).gpu.setNow(10000); (window as any).gpu.setError("offline"); });
   await expect(page.locator('[data-gpu-live]')).toHaveCount(0);
 });

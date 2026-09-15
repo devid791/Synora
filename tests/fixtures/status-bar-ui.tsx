@@ -71,7 +71,7 @@ const backend = (): BackendStatus => {
         session_gc_active: false,
       },
     },
-    gpu: {
+    gpu: w.noCollector ? { ...unavailable, code: "GPU_NOT_CONFIGURED" } : w.gpuFailed ? unavailable : {
       state: "available",
       observedAt: at,
       durationMs: 1,
@@ -82,7 +82,7 @@ const backend = (): BackendStatus => {
         sampledAt: at,
         durationMs: 1,
         devices: w.devices,
-        issues: [],
+        issues: w.issues ?? [],
       },
     },
     kv: {
@@ -225,6 +225,8 @@ const memory: LocalMetrics = {
   tokens: null,
 };
 function Fixture() {
+  const [platform, setPlatform] = useState("darwin");
+  w.setPlatform = setPlatform;
   const [engine, setEngine] = useState(initial),
     [connection, setConnection] = useState(initial);
   const [mode, setMode] = useState("axiom"),
@@ -275,7 +277,7 @@ function Fixture() {
           }
           providerKey={mode}
           metrics={metrics}
-          platform="darwin"
+          platform={platform}
           protocolVersion="0.153.4"
           onOverlayChange={onOverlayChange}
         />

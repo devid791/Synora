@@ -153,6 +153,10 @@ const api: DesktopAPI = {
   terminalResize: (id, cols, rows) =>
     ipcRenderer.invoke("synora:terminalResize", id, cols, rows),
   terminalClose: (id) => ipcRenderer.invoke("synora:terminalClose", id),
+  controlStatus: () => ipcRenderer.invoke("synora:controlStatus"),
+  controlConfigure: (grant) => ipcRenderer.invoke("synora:controlConfigure", grant),
+  controlApprove: (id, allow) => ipcRenderer.invoke("synora:controlApprove", id, allow),
+  controlStop: () => ipcRenderer.invoke("synora:controlStop"),
   browserOpen: (url) => ipcRenderer.invoke("synora:browserOpen", url),
   browserNavigate: (id, url) =>
     ipcRenderer.invoke("synora:browserNavigate", id, url),

@@ -3,7 +3,6 @@ import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { PROTOCOL_VERSION } from "../shared/contracts";
 import {
   accountLoginSchema,
   openAiAuthorizationUrl,
@@ -12,7 +11,7 @@ import {
   type CoreAccountStatus,
 } from "../shared/core-account";
 import { appServerEnvironment } from "./axiom-process";
-import { managedCore } from "./core-runtime";
+import { managedCore, selectedCoreVersion } from "./core-runtime";
 import { validateBearer } from "./axiom-auth";
 import {
   AppServerTransport,
@@ -178,7 +177,7 @@ export class CoreAccountController {
       });
       if (
         version.stdout.trim() !==
-        `codex-cli ${this.options.runtime?.version ?? PROTOCOL_VERSION}`
+        `codex-cli ${selectedCoreVersion(this.options)}`
       )
         throw failure("Pinned Core version mismatch");
     }

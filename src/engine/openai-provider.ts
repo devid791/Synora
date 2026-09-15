@@ -5,13 +5,12 @@ import {
   appServerEnvironment,
   type prepareAxiomProcess,
 } from "./axiom-process";
-import { managedCore } from "./core-runtime";
+import { managedCore, selectedCoreVersion } from "./core-runtime";
 import { mcpConfiguration } from "./mcp-config";
 import { AppServerTransport } from "./app-server-transport";
 import { parseResponse } from "./protocol-validation";
 import {
   OPENAI_ENDPOINT,
-  PROTOCOL_VERSION,
   type ModelCapabilities,
 } from "../shared/contracts";
 import type { ModelListResponse } from "../protocol/codex-0.153.4/v2/ModelListResponse";
@@ -125,7 +124,7 @@ export const prepareOpenAiProcess: typeof prepareAxiomProcess = async (
   });
   if (
     version.stdout.trim() !==
-    `codex-cli ${options.runtime?.version ?? PROTOCOL_VERSION}`
+    `codex-cli ${selectedCoreVersion(options)}`
   )
     throw new Error("Pinned Core version mismatch");
   const config = {

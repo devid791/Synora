@@ -77,6 +77,7 @@ export async function updaterFixture(root: string, broken = false) {
   return {
     releases,
     options: {
+      bundledVersion: "0.153.4",
       // Windows does not execute shebang scripts. This is a controlled protocol
       // fixture launched by Node, never represented as a genuine Core binary.
       ...(process.platform === "win32"

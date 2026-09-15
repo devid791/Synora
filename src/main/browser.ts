@@ -2,11 +2,13 @@ import { WebContentsView, session, type BrowserWindow } from "electron";
 import { randomUUID } from "node:crypto";
 import type { BrowserTab, DesktopEvent } from "../shared/contracts";
 import { browserURL } from "../shared/browser-url";
+import { browserInspection } from "./browser-inspection";
+import type { BrowserInput, BrowserFrame } from "../shared/contracts";
 
 export class Browser {
   private entries = new Map<
     string,
-    { view: WebContentsView; tab: BrowserTab }
+    { view: WebContentsView; tab: BrowserTab; capture?: Promise<BrowserFrame> }
   >();
   constructor(
     private window: BrowserWindow,
@@ -78,6 +80,7 @@ export class Browser {
     };
     this.entries.set(id, { view, tab });
     this.window.contentView.addChildView(view);
+    view.setBounds({ x: 0, y: 0, width: 1000, height: 650 });
     view.setVisible(false);
     const wc = view.webContents;
     const sync = () => {
@@ -148,6 +151,50 @@ export class Browser {
         this.changed();
       }
     });
+  }
+  async inspect(id: string) {
+    const wc = this.get(id).view.webContents;
+    if (wc.isLoading()) throw Error("Page is still loading; wait for navigation before observing");
+    return wc.executeJavaScript(browserInspection, false);
+  }
+  async frame(id: string) {
+    const entry = this.get(id);
+    // The live preview and model may observe the same hidden view concurrently.
+    // Share only an in-flight capture, never a cached/stale observation.
+    const pending = entry.capture ??= (async () => {
+      const image = await entry.view.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true });
+      if (image.isEmpty()) throw Error("Browser frame is unavailable");
+      const bounds = entry.view.getBounds();
+      const normalized = image.resize({ width: bounds.width, height: bounds.height });
+      return { dataURL: `data:image/jpeg;base64,${normalized.toJPEG(80).toString("base64")}`, width: bounds.width, height: bounds.height };
+    })();
+    try { return await pending; }
+    finally { if (entry.capture === pending) entry.capture = undefined; }
+  }
+  async input(id: string, input: BrowserInput) {
+    const wc = this.get(id).view.webContents;
+    // The side panel displays this isolated page through a live frame stream.
+    // Electron sendInputEvent silently loses input when its native child view
+    // is hidden. Fixed CDP Input commands deliver real DOM events in that page
+    // without stealing focus from the chat or exposing a debugging TCP port.
+    if (!wc.debugger.isAttached()) wc.debugger.attach("1.3");
+    const send = (method: string, args: Record<string, unknown>) => wc.debugger.sendCommand(method, args);
+    if (input.type === "text") await send("Input.insertText", { text: input.text });
+    else if (input.type === "key") {
+      const parts = input.key.split("+"), key = parts.pop()!;
+      const codes: Record<string, number> = { Enter:13,Tab:9,Escape:27,Backspace:8,Delete:46,ArrowUp:38,ArrowDown:40,ArrowLeft:37,ArrowRight:39,Home:36,End:35,PageUp:33,PageDown:34,a:65 };
+      const modifiers = parts.reduce((n,p)=>n | (p === "Control" ? 2 : p === "Meta" ? 4 : 8),0);
+      const args = { key, code: key === "a" ? "KeyA" : key, windowsVirtualKeyCode:codes[key], modifiers };
+      await send("Input.dispatchKeyEvent", { type:"keyDown", ...args, ...(key === "Enter" ? {text:"\r"} : {}), ...(key === "a" && modifiers ? {commands:["selectAll"]} : {}) });
+      await send("Input.dispatchKeyEvent", { type:"keyUp", ...args });
+    } else {
+      const point = { x:input.x,y:input.y };
+      await send("Input.dispatchMouseEvent", { type:"mouseMoved",...point });
+      if (input.type === "click") {
+        await send("Input.dispatchMouseEvent", { type:"mousePressed",...point,button:input.button,clickCount:1 });
+        await send("Input.dispatchMouseEvent", { type:"mouseReleased",...point,button:input.button,clickCount:1 });
+      } else await send("Input.dispatchMouseEvent", {type:"mouseWheel",...point,deltaX:input.deltaX,deltaY:input.deltaY});
+    }
   }
   action(id: string, action: "back" | "forward" | "reload" | "close") {
     const { view } = this.get(id);

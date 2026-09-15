@@ -10,6 +10,7 @@ import type { Result, DesktopEvent } from "../src/shared/contracts";
 import type { EventEnvelope } from "../src/shared/contracts";
 import { conversationTimeline } from "../src/renderer/conversation-timeline";
 import { terminalMarker, terminalSleep } from "./terminal-fixture";
+import type { ComputerUse } from "../src/main/computer-use";
 
 const value = <T>(r: Result<T>) => {
   if (!r.ok) throw new Error(r.error.message);
@@ -121,6 +122,24 @@ test("Conversation permission operation preserves drafts/history/attachments and
     assert.equal(f.service.store.read().conversations.length, before.conversations.length);
     for (const args of [[c.id, "invalid"], ["", "ask"], [c.id, "full", true]]) assert.throws(() => validateOperation("conversationPermission", args));
   } finally { await f.cleanup(); }
+});
+test("The conversation permission API invalidates control consent only for an actual scoped policy change",async(ctx)=>{
+ const f=await setup();
+ try{
+  const chat=f.service.store.conversation(null),other=f.service.store.conversation(null);
+  f.service.store.conversationPermission(chat.id,'full');
+  const control=(f.service as unknown as {control:ComputerUse}).control;
+  const changed:string[]=[];
+  ctx.mock.method(control,'permissionChanged',(id:string)=>{changed.push(id);return false;});
+  value(await f.service.api.conversationPermission(chat.id,'full'));
+  value(await f.service.api.conversationPermission(null,'full'));
+  assert.deepEqual(changed,[]);
+  for(const permission of ['ask','auto-review','full'] as const)value(await f.service.api.conversationPermission(chat.id,permission));
+  assert.deepEqual(changed,[chat.id,chat.id,chat.id]);
+  assert.equal((await f.service.api.conversationPermission('missing','ask')).ok,false);
+  assert.deepEqual(changed,[chat.id,chat.id,chat.id]);
+  assert(f.service.store.read().conversations.some(c=>c.id===other.id));
+ }finally{ctx.mock.restoreAll();await f.cleanup();}
 });
 test("Worker cleanup failure still closes supervisor, terminals, browser and store", async (ctx) => {
   const t = await setup(),

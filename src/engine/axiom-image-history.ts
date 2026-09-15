@@ -1,4 +1,4 @@
-type Span = { start: number; end: number };
+type Span = { start: number; end: number; key?: { start: number; end: number } };
 const whitespace = (c: string | undefined) =>
   c === " " || c === "\n" || c === "\r" || c === "\t";
 function skipSpace(source: string, at: number) {
@@ -45,13 +45,15 @@ function members(
     index = 0;
   while (at < span.end && source[at] !== (object ? "}" : "]")) {
     let key = String(index++);
+    let keySpan: Span | undefined;
     if (object) {
       const end = stringEnd(source, at);
+      keySpan = { start: at, end };
       key = JSON.parse(source.slice(at, end));
       at = skipSpace(source, skipSpace(source, end) + 1); // colon
     }
     const end = valueEnd(source, at);
-    result.set(key, { start: at, end });
+    result.set(key, { start: at, end, key: keySpan });
     at = skipSpace(source, end);
     if (source[at] === ",") at = skipSpace(source, at + 1);
   }
@@ -65,12 +67,23 @@ function message(value: unknown): value is Record<string, unknown> {
     record(value) && (value.type === undefined || value.type === "message")
   );
 }
+function visualToolOutput(value: unknown): value is Record<string, unknown> {
+  return record(value) &&
+    (value.type === "function_call_output" || value.type === "custom_tool_call_output") &&
+    typeof value.call_id === "string" && value.call_id.length > 0 &&
+    !Object.hasOwn(value, "role") && !Object.hasOwn(value, "content") &&
+    Array.isArray(value.output) && value.output.some(part =>
+      record(part) && part.type === "input_image" && typeof part.image_url === "string" && part.image_url.length > 0);
+}
 
 /**
  * Axiom's multimodal parser accepts text/input_text but rejects assistant
- * output_text replayed by Core. Change ONLY that discriminator, only for image
- * histories. Roles, text, annotations, tool arguments, image bytes and all IDs
- * remain byte-for-byte untouched. Never apply to other providers or responses.
+ * output_text replayed by Core. Its function_call_output normalizer also flattens
+ * structured output to text, losing MCP screenshots before vision processing.
+ * Encode visual outputs as Axiom's supported message/role=tool/content envelope.
+ * They remain TOOL data, never user/developer instructions. IDs, original part
+ * order, image bytes, text, arguments and numeric spellings stay untouched.
+ * Never apply to other providers or mutate Core's stored history/responses.
  * `body` must be JSON.parse(source), validated by the private context bridge.
  */
 export function axiomImageHistory(
@@ -81,11 +94,11 @@ export function axiomImageHistory(
     !Array.isArray(body.input) ||
     !body.input.some(
       (item) =>
-        message(item) &&
+        visualToolOutput(item) || (message(item) &&
         Array.isArray(item.content) &&
         item.content.some(
           (part) => record(part) && part.type === "input_image",
-        ),
+        )),
     )
   )
     return source;
@@ -96,16 +109,25 @@ export function axiomImageHistory(
   ).get("input");
   if (!input) return source;
   const items = members(source, input, false),
-    edits: Span[] = [];
+    edits: (Span & { replacement: string })[] = [];
   body.input.forEach((item, index) => {
+    const itemSpan = items.get(String(index));
+    if (!itemSpan) return;
+    if (visualToolOutput(item)) {
+      const fields = members(source, itemSpan, true);
+      const type = fields.get("type"), outputKey = fields.get("output")?.key;
+      if (type && outputKey) {
+        edits.push({ start: itemSpan.start + 1, end: itemSpan.start + 1, replacement: '"role":"tool",' },
+          { ...type, replacement: '"message"' }, { ...outputKey, replacement: '"content"' });
+      }
+      return;
+    }
     if (
       !message(item) ||
       item.role !== "assistant" ||
       !Array.isArray(item.content)
     )
       return;
-    const itemSpan = items.get(String(index));
-    if (!itemSpan) return;
     const content = members(source, itemSpan, true).get("content");
     if (!content) return;
     const parts = members(source, content, false);
@@ -119,13 +141,13 @@ export function axiomImageHistory(
       const partSpan = parts.get(String(partIndex));
       if (!partSpan) return;
       const type = members(source, partSpan, true).get("type");
-      if (type) edits.push(type);
+      if (type) edits.push({ ...type, replacement: '"input_text"' });
     });
   });
   let at = 0;
   const chunks: string[] = [];
-  for (const edit of edits) {
-    chunks.push(source.slice(at, edit.start), '"input_text"');
+  for (const edit of edits.sort((a, b) => a.start - b.start)) {
+    chunks.push(source.slice(at, edit.start), edit.replacement);
     at = edit.end;
   }
   return edits.length ? chunks.join("") + source.slice(at) : source;

@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { X } from "lucide-react";
+import { ArrowUp, ListPlus, X } from "lucide-react";
 import type { QueuedMessage } from "../shared/user-preferences";
 import { useI18n } from "./i18n";
 import { messages } from "./locales/settings";
@@ -9,6 +9,9 @@ export function BusyMessageStatus({
   behavior,
   available,
   pending,
+  canSubmit,
+  submit,
+  submitted,
   removing,
   removingId,
   remove,
@@ -19,6 +22,9 @@ export function BusyMessageStatus({
   behavior: "queue" | "steer";
   available: boolean;
   pending: boolean;
+  canSubmit: boolean;
+  submit: (behavior: "queue" | "steer") => void;
+  submitted: "queue" | "steer" | null;
   removing: boolean;
   removingId: string | null;
   remove: (messageId: string) => Promise<void>;
@@ -29,6 +35,38 @@ export function BusyMessageStatus({
   const id = useId();
   return (
     <>
+      {(available || pending) && (
+        <div className="busy-message-actions">
+          <button
+            type="button"
+            className="busy-send-now"
+            disabled={!canSubmit || pending}
+            title={t(
+              "Send to the active turn without waiting for it to finish.",
+            )}
+            onClick={() => submit("steer")}
+          >
+            <ArrowUp aria-hidden="true" />
+            {t("Send now")}
+          </button>
+          <button
+            type="button"
+            disabled={!canSubmit || pending}
+            title={t("Send after the current turn finishes.")}
+            onClick={() => submit("queue")}
+          >
+            <ListPlus aria-hidden="true" />
+            {t("Queue")}
+          </button>
+        </div>
+      )}
+      {submitted && !pending && (
+        <p className="busy-message-receipt" role="status">
+          {submitted === "steer"
+            ? t("Sent to the active turn.")
+            : t("Queued — after the current turn")}
+        </p>
+      )}
       {queue.length > 0 && (
         <section className="queued-messages" aria-label={t("Queued messages")}>
           {queue.map((message) => (

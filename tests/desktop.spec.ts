@@ -231,7 +231,10 @@ test("Desktop local workflows, isolation, persistence, terminal and browser", as
       "Settings",
     ])
       await nav(page, label);
-    await page.getByLabel("Compact interface").check();
+    // Preferences acknowledge async storage before changing the controlled
+    // checkbox. Assert the acknowledged result, not the click's immediate DOM.
+    await page.getByLabel("Compact interface").click();
+    await expect(page.getByLabel("Compact interface")).toBeChecked();
     await expect(page.locator(".app")).toHaveClass(/compact/);
     await nav(page, "Models & accounts");
     // A fresh profile checks Core account state on first navigation. Provider

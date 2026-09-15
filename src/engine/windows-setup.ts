@@ -2,13 +2,13 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdir, realpath } from "node:fs/promises";
 import { appServerEnvironment } from "./axiom-process";
-import { managedCore } from "./core-runtime";
+import { managedCore, selectedCoreVersion } from "./core-runtime";
 import {
   AppServerTransport,
   type TransportOptions,
 } from "./app-server-transport";
 import { parseNotification, parseResponse } from "./protocol-validation";
-import { PROTOCOL_VERSION, type NativeToolSetup } from "../shared/contracts";
+import { type NativeToolSetup } from "../shared/contracts";
 
 type Options = {
   runtime?: import("./core-runtime").CoreSelection;
@@ -52,9 +52,9 @@ export async function nativeToolSetup(
     });
     if (
       version.stdout.trim() !==
-      `codex-cli ${options.runtime?.version ?? PROTOCOL_VERSION}`
+      `codex-cli ${selectedCoreVersion(options)}`
     )
-      throw new Error(`Native setup requires pinned Core ${PROTOCOL_VERSION}`);
+      throw new Error(`Native setup requires pinned Core ${selectedCoreVersion(options)}`);
   }
   let completed!: (v: { success: boolean; error: string | null }) => void;
   const completion = new Promise<{ success: boolean; error: string | null }>(

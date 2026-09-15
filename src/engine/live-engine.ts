@@ -5,6 +5,7 @@ import type { HostTools } from "./host-tools";
 import { updateCompactions, type CompactionRecord } from "../shared/compaction";
 import { captureUsage, emptyUsage, type SessionUsage } from "../shared/session-usage";
 import { permissionContract, type PermissionMode } from "../shared/permission-mode";
+import { isMcpToolApproval } from "../shared/mcp-tool-approval";
 import { cancelTurnTerminals } from "./cancel-terminals";
 import { updateItems } from "../shared/item-state";
 import {
@@ -82,6 +83,8 @@ export interface LiveOptions {
   bind: (conversationId: string, binding: EngineBinding) => void;
   sink: (event: EventEnvelope) => void;
   turnDeadlineMs?: number;
+  /** Host-only idle budget. Explicit turnDeadlineMs remains an absolute limit. */
+  turnIdleTimeoutMs?: number;
   initialSequence?: number;
 }
 export class LiveEngine {
@@ -120,6 +123,8 @@ export class LiveEngine {
   >();
   private childTurns = new Map<string, string>();
   private deadline?: ReturnType<typeof setTimeout>;
+  private deadlineEpoch = 0;
+  private hasUpstreamProgress?: (sessionId: string) => Promise<boolean>;
   private ending?: Promise<void>;
   private terminalListeners = new Set<() => void>();
   private agents = new Map<string, EngineSnapshot["agents"][number]>();
@@ -501,6 +506,17 @@ export class LiveEngine {
     this.publish();
     for (const notify of this.terminalListeners) notify();
   }
+  private renewForActivity(message: ReturnType<typeof parseNotification>, items: ThreadItem[]) {
+    const p = message.params;
+    const item = message.method === "item/started" || message.method === "item/completed" ? message.params.item : null;
+    // Call only after validating the current root/child identity. Heartbeats,
+    // duplicate records and metadata refreshes are not semantic progress.
+    if (this.options.turnDeadlineMs === undefined && this.deadline && !this.cancelled && !this.cancellation &&
+      ((item && JSON.stringify(items.find(i => i.id === item.id)) !== JSON.stringify(item)) ||
+        ("delta" in p && typeof p.delta === "string" && p.delta.length > 0 &&
+          ["item/agentMessage/delta", "item/commandExecution/outputDelta", "item/reasoning/textDelta", "item/reasoning/summaryTextDelta", "item/plan/delta"].includes(message.method))))
+      this.armDeadline();
+  }
   private notification(raw: unknown) {
     const message = parseNotification(raw);
     const p = message.params;
@@ -552,6 +568,12 @@ export class LiveEngine {
         p.turnId !== agent.turnId
       )
         return;
+      if (message.method === "turn/completed" && message.params.turn.id !== agent.turnId) return;
+      if (message.method === "turn/completed" && message.params.turn.status === "inProgress")
+        throw new AppServerError("PROTOCOL_LIFECYCLE", "Core emitted child turn/completed with a non-terminal inProgress status");
+      if (agent.parentId === this.state.threadId && !agent.closed && agent.status === "running" &&
+        "turnId" in p && p.turnId === agent.turnId)
+        this.renewForActivity(message, agent.activity ?? []);
       if (
         message.method === "item/started" ||
         message.method === "item/completed"
@@ -641,6 +663,9 @@ export class LiveEngine {
         "PROTOCOL_LIFECYCLE",
         "Core emitted turn/completed with a non-terminal inProgress status",
       );
+    // Only owned semantic activity refreshes the default idle budget. Repeated
+    // connection/status/usage notices and stale/foreign turns do not keep work alive.
+    this.renewForActivity(message, this.state.items);
     this.state.compactions = updateCompactions(
       this.state.compactions ?? [],
       message,
@@ -733,6 +758,25 @@ export class LiveEngine {
       return;
     }
     const request = parseServerRequest(raw);
+    if (request.method === "mcpServer/elicitation/request" && isMcpToolApproval(request.params)) {
+      const p = request.params;
+      const root = p.threadId === this.state.threadId && p.turnId === this.state.turnId;
+      const child = this.agents.has(p.threadId) && this.childTurns.get(p.threadId) === p.turnId;
+      if (!(root || child) || !["running", "waiting"].includes(this.state.status)) {
+        this.transport!.respond(request.id, { error: { code: -32602, message: "MCP approval does not belong to the active Synora turn" } });
+        return;
+      }
+      if (root && this.state.conversationId && this.options.context(this.state.conversationId).permission === "full") {
+        // Full access explicitly authorizes execution without further Synora
+        // prompts. This accepts only this call, never a persisted MCP grant.
+        this.transport!.respond(request.id, {result:{action:"accept",content:{},_meta:null}});
+        return;
+      }
+      // Show the original message/parameters. Only a real UI decision responds.
+      this.pending.set(randomUUID(), request);
+      this.refreshRequests();
+      return;
+    }
     if (request.method === "item/tool/call") {
       const transport = this.transport!,
         extension = this.hostTools;
@@ -949,6 +993,7 @@ export class LiveEngine {
       await config.cleanup?.();
       throw new Error("Engine startup was cancelled");
     }
+    this.hasUpstreamProgress = config.hasProgress;
     const transport = new AppServerTransport({
       ...config,
       onNotification: (v) => this.notification(v),
@@ -1386,19 +1431,47 @@ export class LiveEngine {
   }
   private armDeadline() {
     clearTimeout(this.deadline);
+    const epoch = ++this.deadlineEpoch;
     if (["running", "waiting"].includes(this.state.status))
-      this.deadline = setTimeout(() => {
-        void this.cancel()
-          .then(() =>
-            this.failed(
-              new AppServerError(
-                "TURN_DEADLINE",
-                "The live operation exceeded its configured deadline and was interrupted",
-              ),
-            ),
-          )
-          .catch((e) => this.failed(e));
-      }, this.options.turnDeadlineMs ?? 600000);
+      this.deadline = setTimeout(() => { void this.expireDeadline(epoch); },
+        this.options.turnDeadlineMs ?? this.options.turnIdleTimeoutMs ?? 600000);
+  }
+  private async expireDeadline(epoch: number) {
+    const { threadId, turnId, sessionId } = this.state;
+    const same = () => !this.disposed && !this.cancelled && !this.cancellation &&
+      epoch === this.deadlineEpoch && this.state.threadId === threadId && this.state.turnId === turnId &&
+      ["running", "waiting"].includes(this.state.status);
+    if (!same()) return;
+    if (this.options.turnDeadlineMs === undefined && sessionId && this.hasUpstreamProgress) {
+      let progressing = false;
+      const owned = new Set([sessionId]);
+      for (const agent of this.agents.values())
+        if (agent.parentId === threadId && agent.turnId && !agent.closed && !agent.metadataError && agent.status === "running") {
+          owned.add(agent.id);
+          if (agent.coreSessionId) owned.add(agent.coreSessionId);
+        }
+      for (const id of owned) {
+        try { progressing = await this.hasUpstreamProgress(id); } catch { /* unknown is not verified progress */ }
+        if (!same()) return;
+        // A child can terminate while a status read is pending.
+        const stillOwned = id === sessionId || [...this.agents.values()].some(a =>
+          a.parentId === threadId && a.turnId && !a.closed && !a.metadataError && a.status === "running" &&
+          (a.id === id || a.coreSessionId === id));
+        if (progressing && stillOwned) break;
+        progressing = false;
+      }
+      if (!same()) return;
+      if (progressing) { this.armDeadline(); return; }
+    }
+    try {
+      await this.cancel();
+      if (this.disposed || epoch !== this.deadlineEpoch || this.state.threadId !== threadId || this.state.turnId !== turnId) return;
+      this.failed(new AppServerError("TURN_DEADLINE", this.options.turnDeadlineMs !== undefined
+        ? "The live operation exceeded its configured deadline and was interrupted"
+        : "No progress could be verified within the live operation's idle budget; the owned turn was interrupted"));
+    } catch (error) {
+      if (!this.disposed && epoch === this.deadlineEpoch && this.state.threadId === threadId && this.state.turnId === turnId) this.failed(error);
+    }
   }
   async compact(conversationId: string): Promise<EngineSnapshot> {
     const context = this.begin(conversationId, true);
@@ -1613,7 +1686,12 @@ export class LiveEngine {
       throw Error(
         "Core did not offer this approval decision. Cancel the turn if no suitable decision is available.",
       );
-    if (parsed.method === "item/permissions/requestApproval") {
+    if (parsed.method === "mcpServer/elicitation/request") {
+      if (!isMcpToolApproval(parsed.params)) throw Error("Unsupported MCP approval form");
+      this.transport!.respond(request.id, {
+        result: { action: approved ? "accept" : "decline", content: approved ? {} : null, _meta: null },
+      });
+    } else if (parsed.method === "item/permissions/requestApproval") {
       const p = parsed.params.permissions;
       this.transport!.respond(request.id, {
         result: {

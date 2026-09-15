@@ -1,6 +1,7 @@
 // Real App with a controlled typed service boundary. No Core/model/network IO.
 import { createRoot } from "react-dom/client";
 import { App } from "../../src/renderer/App";
+import { noControl } from "./control-status";
 import { webAPI } from "../../src/renderer/web-api";
 import { emptyEngine } from "../../src/renderer/engine-state";
 import type {
@@ -147,6 +148,15 @@ const ok = <T,>(value: T): Result<T> => ({
 const record = (method: string, args: unknown[]) =>
   harness.calls.push({ method, args: structuredClone(args) });
 const implemented = {
+  controlStatus: noControl,
+  conversationPermission: async (id, permission) => {
+    record("conversationPermission", [id, permission]);
+    const conversation = harness.state.conversations.find(c => c.id === id);
+    if (conversation) conversation.defaults = { bot: conversation.defaults?.bot ?? null, permission };
+    harness.state.preferences.permission = permission;
+    harness.state.revision++;
+    return ok(harness.state);
+  },
   state: async () => ok(harness.state),
   capabilities: async () =>
     ok({

@@ -18,6 +18,26 @@ import {
 } from "../src/engine/qualified-core";
 import { updaterFixture } from "./core-updater-fixture";
 import { Store } from "../src/main/store";
+test("Fresh release starts on the current bundle while saved legacy selections remain intact", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "synora-current-bundle-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const fresh = new CoreUpdater(root);
+  assert.equal(fresh.selection().version, "0.154.0");
+  assert.equal(fresh.snapshot().eligibleVersion, null);
+  await fresh.dispose();
+  await mkdir(join(root, "runtime-updates"));
+  const retained = {active:{version:"0.153.4",generation:null},previous:null,recoveryId:null,
+    automatic:false,latestVersion:null,checkedAt:null,checks:[]};
+  const path = join(root, "runtime-updates/active.json"), bytes = JSON.stringify(retained);
+  await writeFile(path, bytes);
+  const reopened = new CoreUpdater(root);
+  try {
+    assert.equal(reopened.selection().version, "0.153.4");
+    assert.equal(reopened.snapshot().eligibleVersion, "0.154.0");
+    assert.equal(reopened.snapshot().automatic, false);
+    assert.equal(await readFile(path, "utf8"), bytes);
+  } finally { await reopened.dispose(); }
+});
 test("dispose aborts a pending download; concurrent install cannot pass admission", async (t) => {
   const f = await setup(t);
   let started!: () => void;

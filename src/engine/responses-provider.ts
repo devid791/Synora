@@ -16,7 +16,7 @@ import {
   type prepareAxiomProcess,
 } from "./axiom-process";
 import { bearerHeaders } from "./axiom-auth";
-import { managedCore } from "./core-runtime";
+import { managedCore, selectedCoreVersion } from "./core-runtime";
 import { mcpConfiguration } from "./mcp-config";
 import {
   createProcessCatalog,
@@ -27,7 +27,7 @@ import {
   ResponsesToolError,
   ResponsesToolStream,
 } from "./responses-tool-codec";
-import { PROTOCOL_VERSION, type ModelCapabilities } from "../shared/contracts";
+import { type ModelCapabilities } from "../shared/contracts";
 
 export class ProviderCompatibilityError extends Error {
   constructor(
@@ -378,7 +378,7 @@ export async function prepareResponsesProcess(
   });
   if (
     stdout.trim() !==
-    `codex-cli ${options.runtime?.version ?? PROTOCOL_VERSION}`
+    `codex-cli ${selectedCoreVersion(options)}`
   )
     throw Error("Pinned Core version mismatch");
   const processCatalog = await createProcessCatalog(options.stateDirectory, {

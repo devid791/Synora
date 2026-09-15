@@ -70,7 +70,7 @@ export function contextBody(
   const start = source.indexOf("{") + 1;
   // JSON.parse above proves the envelope. Retain its complete source, including
   // numeric spellings, call/item IDs, tools, results, instructions and metadata.
-  // The only other edit is the Axiom image-history discriminator above.
+  // Other edits are restricted to Axiom's image-history/tool-result envelopes.
   return Buffer.from(
     `${source.slice(0, start)}"context_window":${context},${source.slice(start)}`,
   );
