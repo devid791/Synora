@@ -2,19 +2,17 @@ name: Publish verified desktop downloads
 
 on:
   push:
-    tags: ['v0.1.0-foundation.2']
-    branches: [main]
-    paths: ['.github/workflows/release.yml', 'scripts/publish-release.mjs']
+    tags: ['v0.2.0']
   workflow_dispatch:
 
 permissions: {}
 concurrency:
-  group: synora-foundation-2-release
+  group: synora-v0.2.0-release
   cancel-in-progress: false
 
 jobs:
   publish:
-    if: github.repository == 'devid791/Synora' && (github.ref == 'refs/tags/v0.1.0-foundation.2' || github.ref == 'refs/heads/main')
+    if: github.repository == 'devid791/Synora' && (github.ref == 'refs/tags/v0.2.0' || github.ref == 'refs/heads/codex/release-v0.2.0')
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
