@@ -53,10 +53,13 @@ jobs:
         include:
           - os: linux
             runner: synora-qa-linux-x64
+            shell: bash
           - os: mac
             runner: synora-qa-macos-arm64
+            shell: bash
           - os: win
             runner: synora-qa-windows-x64
+            shell: powershell
     runs-on: [self-hosted, '${{ matrix.runner }}']
     timeout-minutes: 90
     steps:
@@ -64,17 +67,17 @@ jobs:
         with:
           persist-credentials: false
       - run: node scripts/core-channel-worktree.mjs
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+        shell: ${{ matrix.shell }}
       - name: Verify candidate and build native components
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+        shell: ${{ matrix.shell }}
         env:
           CORE_VERSION: ${{ needs.discover.outputs.version }}
         run: node scripts/run-core-channel-job.mjs prepare
       - name: Package isolated candidate
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+        shell: ${{ matrix.shell }}
         run: node scripts/run-core-channel-job.mjs package
       - name: Real native qualification
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+        shell: ${{ matrix.shell }}
         run: node scripts/run-core-channel-job.mjs qualify
       - name: Retain measured reports (a failed or missing gate cannot sign)
         if: always()
@@ -86,7 +89,7 @@ jobs:
           retention-days: 14
       - name: Remove only this run's disposable source worktree
         if: always() && env.CORE_QA_WORKTREE != ''
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+        shell: ${{ matrix.shell }}
         run: node scripts/core-channel-worktree.mjs cleanup
   publish:
     needs: [discover, qualify]
