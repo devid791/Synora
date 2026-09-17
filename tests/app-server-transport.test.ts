@@ -150,10 +150,14 @@ if (process.platform !== "win32")
       const denied = Object.assign(new Error("simulated group EPERM"), {
         code: "EPERM",
       });
-      const mocked = context.mock.method(process, "kill", (pid, signal) => {
-        if (pid === -t.pid!) throw denied;
-        return kill(pid, signal);
-      });
+      const mocked = context.mock.method(
+        process,
+        "kill",
+        (pid: number, signal?: NodeJS.Signals | number) => {
+          if (pid === -t.pid!) throw denied;
+          return kill(pid, signal);
+        },
+      );
       try {
         if (liveDescendant)
           await assert.rejects(t.close(), (error) => error === denied);
