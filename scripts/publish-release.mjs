@@ -7,17 +7,17 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-// Original, unchanged baseline 67eed3d packages. This publishes no build and
-// does not promote the known cross-platform limitations to production GO.
+// Publish the exact tested hardware-discovery packages, without rebuilding or changing them.
+// Qualification scope and local signing/OS grant limitations remain explicit.
 const repository = 'devid791/Synora';
-const tag = 'v0.1.0-foundation.2';
+const tag = 'v0.2.1';
 const origin = 'https://synora-ai.org/downloads/';
 const assets = [
-  { name: 'Synora-67eed3d-macos-arm64.zip', size: 250790917, sha256: 'dadb88946bfce491a8055512b6ff30ee98bece0a6f59e1b4c84dff0585b957ac', type: 'application/zip' },
-  { name: 'Synora-67eed3d-linux-amd64.deb', size: 231983880, sha256: 'c799d0635775f1349c8982a88b0dfb1c250477c672efbe34f1766644c9311fda', type: 'application/octet-stream' },
-  { name: 'Synora-67eed3d-windows-x64.exe', size: 259036023, sha256: '8987c221bdf33dea4c2354aba44da6282546ca50df1a934f98b434ae1cea3b18', type: 'application/octet-stream' },
-  { name: 'SHA256SUMS.txt', size: 291, sha256: '72c61a64ceb73f0157400dcd669f42427714e08d6cf89126eca2b8d71acc1737', type: 'text/plain' },
-  { name: 'RELEASE-NOTES.txt', size: 2676, sha256: 'de199ea13e66d39d71e2ba6b86fd4db1e485bbb0ebc4773148d4bf544fefc763', type: 'text/plain' },
+  { name: 'Synora-0.2.1-macos-arm64.zip', size: 364032862, sha256: '05a551be0b398407daedcef8108c75b9391f3e55f124e1bea4fb351b78ff6e53', type: 'application/zip' },
+  { name: 'Synora-0.2.1-windows-x64.exe', size: 395353148, sha256: '679c6c27b7e8f2e4477bf4aa21c4ee41e68c8eb6e3987729f0b2ab61b2e8b08e', type: 'application/octet-stream' },
+  { name: 'Synora-0.2.1-linux-amd64.deb', size: 357583824, sha256: '8864dfdd0bf988beb79dfd73c59906b142397b026c40482c77d714aa35973500', type: 'application/octet-stream' },
+  { name: 'SHA256SUMS.txt', source: 'SHA256SUMS-0.2.1.txt', size: 285, sha256: '778d51e6294e81e4371bac4ae684b303295ed855cf7f31a006a4d650a1942c7d', type: 'text/plain' },
+  { name: 'RELEASE-NOTES.txt', source: 'RELEASE-NOTES-0.2.1.txt', size: 3373, sha256: 'cc9a1dd92ade3b3ca96b85238aaa2c95cc6e8951558f3a0096e5d4d1915f45ec', type: 'text/plain' },
 ];
 
 async function verifyFile(directory, asset) {
@@ -38,7 +38,7 @@ async function download(directory, asset) {
     '--fail', '--silent', '--show-error', '--proto', '=https', '--tlsv1.2',
     '--resolve', 'synora-ai.org:443:46.254.38.135', '--max-time', '600',
     '--max-filesize', String(asset.size), '--output', join(directory, asset.name),
-    origin + asset.name,
+    origin + (asset.source ?? asset.name),
   ], { env: { PATH: process.env.PATH, LANG: 'C.UTF-8' }, maxBuffer: 8192 });
   await verifyFile(directory, asset);
 }
@@ -61,7 +61,7 @@ async function main() {
     return;
   }
   assert.equal(process.env.GITHUB_REPOSITORY, repository);
-  assert.ok([`refs/tags/${tag}`, 'refs/heads/main'].includes(process.env.GITHUB_REF));
+  assert.ok([`refs/tags/${tag}`, 'refs/heads/codex/release-v0.2.1'].includes(process.env.GITHUB_REF));
   assert.ok(process.env.GH_TOKEN, 'GitHub Actions token required');
   const authorization = `Bearer ${process.env.GH_TOKEN}`;
   async function api(path, options = {}) {
@@ -77,7 +77,7 @@ async function main() {
     if (!response.ok) throw new Error(`GitHub API ${options.method || 'GET'} ${url.pathname}: HTTP ${response.status}`);
     return response.json();
   }
-  // A publication retry from main uses the existing, immutable release tag.
+  // A publication retry uses the existing, immutable release tag.
   // Never create a tag implicitly from whichever branch happened to trigger it.
   await api(`git/ref/tags/${tag}`);
   const releases = await api('releases?per_page=100');
@@ -92,9 +92,9 @@ async function main() {
   // Validate every byte before creating or modifying a release.
   for (const asset of assets) await download(directory, asset);
   const notes = await readFile(join(directory, 'RELEASE-NOTES.txt'), 'utf8');
-  const body = `## Synora desktop preview\n\nOriginal baseline **67eed3d** packages, unchanged. This is a preview, not a blanket production qualification.\n\n- **macOS Apple silicon:** download the ARM64 ZIP (macOS 13+). Locally signed, not Apple-notarized.\n- **Windows x64:** download the EXE installer (unsigned).\n- **Linux AMD64:** download the DEB package.\n\nUse the installer assets below, not GitHub's automatically generated source archives. Compare file hashes with **SHA256SUMS.txt**.\n\n[Searchable manual](https://synora-ai.org/manual/) · [Website downloads](https://synora-ai.org/#downloads) · [Report a bug](https://github.com/devid791/Synora/issues)\n\n### Release notes and limitations\n\n\`\`\`text\n${notes.trim()}\n\`\`\`\n`;
+  const body = `## Synora 0.2.1 — automatic hardware discovery preview\n\nDiscover server GPUs and physical memory pools through your selected Axiom provider, with explicit execution-device reporting. The live browser remains beside your conversation. Exact tested **bd1717a** application packages, with Codex App Server **0.154.0**. This remains a preview with the qualification scope below.\n\n- **macOS Apple silicon:** download the ARM64 ZIP (macOS 13+). Locally signed, not Apple-notarized; local Keychain approval may be required after updating. No Apple account is needed for local operation.\n- **Windows x64:** download the EXE installer (unsigned).\n- **Linux AMD64:** download the DEB package.\n\nUse the installer assets below, not GitHub's automatically generated source archives. Compare file hashes with **SHA256SUMS.txt**.\n\n[Searchable manual](https://synora-ai.org/manual/) · [Website downloads](https://synora-ai.org/#downloads) · [Report a bug](https://github.com/devid791/Synora/issues)\n\n### Release notes and limitations\n\n\`\`\`text\n${notes.trim()}\n\`\`\`\n`;
   if (!release) release = await api('releases', { method: 'POST', body: JSON.stringify({
-    tag_name: tag, name: 'Synora 0.1.0 Foundation 2 — desktop preview', body,
+    tag_name: tag, name: 'Synora 0.2.1 — automatic hardware discovery preview', body,
     draft: true, prerelease: true, make_latest: 'false',
   }) });
   else await api(`releases/${release.id}`, { method: 'PATCH', body: JSON.stringify({ body, prerelease: true }) });
