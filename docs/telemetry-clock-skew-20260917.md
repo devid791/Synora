@@ -2,9 +2,9 @@
 
 ## Incident and reproduction
 
-The office Windows PC `192.168.25.55` identified itself as
-`NUCBOX_K10.systemipm.local` in a read-only RDP NTLM negotiation through the
-MacBook SSH tunnel. Its clock was about **30 seconds ahead** in two measurements:
+The affected office Windows PC was checked through an authorized read-only
+RDP NTLM negotiation over an SSH tunnel. Its clock was about **30 seconds
+ahead** in two measurements:
 
 - Local UTC `13:14:53`, remote reported UTC `13:15:23`.
 - Local UTC `13:24:23`, remote reported UTC `13:24:54`.
@@ -56,7 +56,8 @@ advanced 30 seconds. The Windows system clock was not changed.
 - An initial UI harness attempt ended with a closed window before observations;
   it is excluded. The successful run applied the process clock shift after
   opening telemetry rather than during application startup/reload.
-- No new release has been published and the office PC is not upgraded yet.
+- This fix is included in the 0.2.2 release packages. Updating the download
+  does not itself install the new version on existing user computers.
 
 Private evidence: `out/hardware-release/publication/windows-clock-qa.json`,
 before/after screenshots, `clock-fix-unit-tests.log`,
