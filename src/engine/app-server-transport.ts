@@ -1,4 +1,9 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import {
+  spawn,
+  execFile,
+  type ChildProcessWithoutNullStreams,
+} from "node:child_process";
+import { promisify } from "node:util";
 import { StringDecoder } from "node:string_decoder";
 
 export type RpcId = string | number;
@@ -253,20 +258,57 @@ export class AppServerTransport {
     return this.closing;
   }
   private async stopOwnedPosixGroup(pid: number) {
-    const signal = (value: NodeJS.Signals | 0) => {
-      try { process.kill(-pid, value); return true; }
-      catch (error) {
+    const signal = async (value: NodeJS.Signals | 0) => {
+      try {
+        process.kill(-pid, value);
+        return true;
+      } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
+        // Darwin can return EPERM for a group containing only unreaped zombies.
+        // Do not swallow a real permission failure: independently verify that
+        // the owned leader has exited and no executing group member remains.
+        if (
+          (error as NodeJS.ErrnoException).code === "EPERM" &&
+          (this.child.exitCode !== null || this.child.signalCode !== null)
+        ) {
+          try {
+            const { stdout } = await promisify(execFile)(
+              "/bin/ps",
+              ["-axo", "pgid=,stat="],
+              {
+                timeout: 2000,
+                maxBuffer: 1024 * 1024,
+                env: { PATH: "/usr/bin:/bin", LC_ALL: "C" },
+              },
+            );
+            const rows = stdout
+              .trim()
+              .split(/\r?\n/)
+              .map((row) =>
+                row.trim().match(/^(\d+)\s+([A-Za-z][A-Za-z0-9+<>-]*)$/),
+              );
+            if (
+              rows.length &&
+              rows.every((row) => row !== null) &&
+              rows.every(
+                (row) => Number(row![1]) !== pid || row![2].startsWith("Z"),
+              )
+            )
+              return false;
+          } catch {
+            /* Keep the original permission failure if observation fails. */
+          }
+        }
         throw error;
       }
     };
-    if (!signal("SIGTERM")) return;
+    if (!(await signal("SIGTERM"))) return;
     const deadline = performance.now() + 2000;
-    while (signal(0) && performance.now() < deadline)
-      await new Promise(resolve => setTimeout(resolve, 25));
+    while ((await signal(0)) && performance.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 25));
     // Quiet descendants can outlive the leader without keeping its pipes open.
     // Group ownership, not leader exitCode or stdio state, bounds their lifetime.
-    if (signal(0)) signal("SIGKILL");
+    if (await signal(0)) await signal("SIGKILL");
   }
   private async shutdown() {
     this.fail(

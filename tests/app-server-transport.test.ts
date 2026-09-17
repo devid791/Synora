@@ -131,47 +131,105 @@ test("Core resources are released exactly once after normal close, crash or spaw
   }
 });
 
-if (process.platform !== "win32") for (const method of ["orphan-exit", "orphan-exit-quiet"]) test(`Closing Core reaps its owned SIGTERM-resistant descendant: ${method}`, async () => {
-  const { transport: t } = create();
-  let deadline: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const childPid = await t.request(method, {});
-    assert.equal(typeof childPid, "number");
-    // Observe the leader exit, not a timing guess; the descendant still holds
-    // stdout/stderr open, so Node has not emitted the child's close event.
-    for (let i = 0; i < 100; i++) {
-      try { process.kill(t.pid!, 0); }
-      catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ESRCH") break;
-        throw error;
+if (process.platform !== "win32")
+  for (const liveDescendant of [false, true])
+    test(`Group EPERM is accepted only after independent confirmation of no live members: ${liveDescendant}`, async (context) => {
+      const { transport: t } = create();
+      const kill = process.kill.bind(process);
+      if (liveDescendant) await t.request("orphan-exit-quiet", {});
+      else await assert.rejects(t.request("exit", {}));
+      for (let i = 0; i < 100; i++) {
+        try {
+          kill(t.pid!, 0);
+        } catch {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-    assert.throws(() => process.kill(t.pid!, 0));
-    await Promise.race([
-      t.close(),
-      new Promise<never>((_, reject) => {
-        deadline = setTimeout(() => reject(Error("Owned descendant kept Core pipes open")), 7000);
-      }),
-    ]);
-    assert.equal(t.diagnostics.closed, true);
-    const stopped = async () => {
+      assert.throws(() => kill(t.pid!, 0));
+      const denied = Object.assign(new Error("simulated group EPERM"), {
+        code: "EPERM",
+      });
+      const mocked = context.mock.method(process, "kill", (pid, signal) => {
+        if (pid === -t.pid!) throw denied;
+        return kill(pid, signal);
+      });
       try {
-        const result = await promisify(execFile)("ps", ["-p", String(childPid), "-o", "stat="]);
-        return result.stdout.trim().startsWith("Z");
-      } catch (error) {
-        if ((error as { code?: number }).code === 1) return true;
-        throw error;
+        if (liveDescendant)
+          await assert.rejects(t.close(), (error) => error === denied);
+        else await t.close();
+      } finally {
+        mocked.mock.restore();
+        try {
+          kill(-t.pid!, "SIGKILL");
+        } catch (error) {
+          if (
+            !["ESRCH", "EPERM"].includes((error as NodeJS.ErrnoException).code!)
+          )
+            throw error;
+        }
       }
-    };
-    for (let i = 0; i < 100 && !await stopped(); i++)
-      await new Promise(resolve => setTimeout(resolve, 10));
-    assert.equal(await stopped(), true, "Owned descendant must no longer execute");
-  } finally {
-    clearTimeout(deadline);
-    // Exact process group created by this fixture, including failed assertions.
-    try { process.kill(-t.pid!, "SIGKILL"); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; }
-    await t.close();
-  }
-});
+    });
+
+if (process.platform !== "win32")
+  for (const method of ["orphan-exit", "orphan-exit-quiet"])
+    test(`Closing Core reaps its owned SIGTERM-resistant descendant: ${method}`, async () => {
+      const { transport: t } = create();
+      let deadline: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const childPid = await t.request(method, {});
+        assert.equal(typeof childPid, "number");
+        // Observe the leader exit, not a timing guess; the descendant still holds
+        // stdout/stderr open, so Node has not emitted the child's close event.
+        for (let i = 0; i < 100; i++) {
+          try {
+            process.kill(t.pid!, 0);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ESRCH") break;
+            throw error;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        assert.throws(() => process.kill(t.pid!, 0));
+        await Promise.race([
+          t.close(),
+          new Promise<never>((_, reject) => {
+            deadline = setTimeout(
+              () => reject(Error("Owned descendant kept Core pipes open")),
+              7000,
+            );
+          }),
+        ]);
+        assert.equal(t.diagnostics.closed, true);
+        const stopped = async () => {
+          try {
+            const result = await promisify(execFile)("ps", [
+              "-p",
+              String(childPid),
+              "-o",
+              "stat=",
+            ]);
+            return result.stdout.trim().startsWith("Z");
+          } catch (error) {
+            if ((error as { code?: number }).code === 1) return true;
+            throw error;
+          }
+        };
+        for (let i = 0; i < 100 && !(await stopped()); i++)
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.equal(
+          await stopped(),
+          true,
+          "Owned descendant must no longer execute",
+        );
+      } finally {
+        clearTimeout(deadline);
+        // Exact process group created by this fixture, including failed assertions.
+        try {
+          process.kill(-t.pid!, "SIGKILL");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
+        await t.close();
+      }
+    });
