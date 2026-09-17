@@ -18,11 +18,14 @@ Bundled Core: 0.154.0; recovery: 0.153.4.
 - Extracted Linux x64 web archive, outside the source checkout: 750-file
   manifest, launch, host/session boundary, real file read/write, native PTY,
   bundled browser input, and isolated Core initialization.
+- Final extracted web archive: a real streamed Axiom answer with measured output
+  tokens. Native live inference, file tools, streaming/resume and cancellation
+  also passed on all three operating systems in the linked qualification run.
 
 ## Not a complete production GO
 
 The complete [native Core qualification run](https://github.com/devid791/Synora/actions/runs/35280843292)
-does **not** pass all gates. The Mac and Linux live search/fetch tests failed:
+does **not** pass all gates. All three native live search/fetch tests failed:
 configured upstream search providers returned rate limits/CAPTCHAs; a Bing
 fallback returned unrelated results when a language filter was supplied.
 These are real failed live tests, not converted to passes or replaced by mocks.
@@ -34,6 +37,8 @@ three native platform reports pass every required gate. A failed qualification
 leaves the previous channel intact; bundled Core remains usable. This release
 therefore remains a preview, with the external search dependency explicitly
 unqualified. It is not certification of every plugin, account or computer.
+The temporary Bing fallback was removed after the incorrect results were
+confirmed; the search service's original configuration was restored exactly.
 
 ## Deployment boundaries
 
