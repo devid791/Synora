@@ -1,4 +1,5 @@
 import readline from "node:readline";
+import { spawn } from "node:child_process";
 const input = readline.createInterface({ input: process.stdin });
 const send = (v) => process.stdout.write(JSON.stringify(v) + "\n");
 input.on("line", (line) => {
@@ -25,6 +26,17 @@ input.on("line", (line) => {
       },
     });
   if (m.method === "never") return;
+  if (m.method === "orphan-exit") {
+    const child = spawn(process.execPath, ["-e", `
+      process.on('SIGTERM', () => {});
+      process.send('ready');
+      setInterval(() => {}, 1000);
+    `], { stdio: ["ignore", process.stdout, process.stderr, "ipc"] });
+    child.once("message", () => {
+      process.stdout.write(JSON.stringify({ id: m.id, result: child.pid }) + "\n", () => process.exit(0));
+    });
+    return;
+  }
   if (m.method === "exit") return process.exit(3);
   if (m.method === "broken") return process.stdout.write("{invalid}\n");
   if (m.method === "truncated") {

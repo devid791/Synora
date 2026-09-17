@@ -51,6 +51,7 @@ export class AppServerTransport {
   private dead: AppServerError | null = null;
   private closing: Promise<void> | null = null;
   private exited: Promise<void>;
+  private stdioClosed = false;
   private stderrTail = "";
   private resourceCleanup?: Promise<void>;
   constructor(private options: TransportOptions) {
@@ -64,6 +65,7 @@ export class AppServerTransport {
     });
     this.exited = new Promise((resolve) => {
       this.child.once("close", (code, signal) => {
+        this.stdioClosed = true;
         if (!this.dead)
           this.fail(
             new AppServerError(
@@ -262,8 +264,8 @@ export class AppServerTransport {
     const pid = this.child.pid;
     if (
       !pid ||
-      this.child.exitCode !== null ||
-      this.child.signalCode !== null
+      (process.platform === "win32" &&
+        (this.child.exitCode !== null || this.child.signalCode !== null))
     ) {
       await this.exited;
       return;
@@ -297,7 +299,10 @@ export class AppServerTransport {
         if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
       }
       timer = setTimeout(() => {
-        if (this.child.exitCode === null && this.child.signalCode === null) {
+        // The leader can exit while descendants still own its stdout/stderr.
+        // Escalate for the original process group until the pipes really close,
+        // not only while the already-exited leader is alive.
+        if (!this.stdioClosed) {
           try {
             process.kill(-pid, "SIGKILL");
           } catch {

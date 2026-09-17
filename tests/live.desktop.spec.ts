@@ -321,7 +321,9 @@ test("Native desktop actual Axiom tool turn, incremental UI, app restart and ori
       "SYNORA_NATIVE_OK",
     );
     await expect
-      .poll(async () => (await snapshot(page)).threadId)
+      // Cold native Core startup includes Windows sandbox verification. It is
+      // asynchronous even after the saved messages have rendered.
+      .poll(async () => (await snapshot(page)).threadId, { timeout: 60000 })
       .toBe(original.threadId);
     await expect
       .poll(async () => (await snapshot(page)).status)

@@ -128,3 +128,36 @@ test("Core resources are released exactly once after normal close, crash or spaw
     assert.equal(releases, 1);
   }
 });
+
+if (process.platform !== "win32") test("Closing an exited Core kills its owned pipe-holding descendant even when it ignores SIGTERM", async () => {
+  const { transport: t } = create();
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const childPid = await t.request("orphan-exit", {});
+    assert.equal(typeof childPid, "number");
+    // Observe the leader exit, not a timing guess; the descendant still holds
+    // stdout/stderr open, so Node has not emitted the child's close event.
+    for (let i = 0; i < 100; i++) {
+      try { process.kill(t.pid!, 0); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ESRCH") break;
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.throws(() => process.kill(t.pid!, 0));
+    await Promise.race([
+      t.close(),
+      new Promise<never>((_, reject) => {
+        deadline = setTimeout(() => reject(Error("Owned descendant kept Core pipes open")), 7000);
+      }),
+    ]);
+    assert.equal(t.diagnostics.closed, true);
+  } finally {
+    clearTimeout(deadline);
+    // Exact process group created by this fixture, including failed assertions.
+    try { process.kill(-t.pid!, "SIGKILL"); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; }
+    await t.close();
+  }
+});
