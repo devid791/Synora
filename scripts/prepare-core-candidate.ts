@@ -1,11 +1,11 @@
 // Only disposable native CI worktrees. Never modifies an installed application.
 import { createHash } from "node:crypto";
-import { mkdir, open, readFile, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, writeFile, lstat } from "node:fs/promises";
 import { resolve, relative, join, isAbsolute } from "node:path";
 import { list } from "tar";
 import assert from "node:assert/strict";
 import { compareCoreVersions } from "../src/engine/qualified-core";
-import { installCore, type CorePackage } from "../src/engine/core-runtime";
+import { installCore, sha256File, type CorePackage } from "../src/engine/core-runtime";
 
 assert.equal(process.env.SYNORA_CORE_QUALIFICATION_WORKTREE, "1", "Disposable qualification checkout required");
 const runner = process.env.RUNNER_TEMP;
@@ -39,9 +39,20 @@ assert.match(asset.digest, /^sha256:[a-f0-9]{64}$/);
 assert.ok(Number.isSafeInteger(asset.size) && asset.size > 0 && asset.size < 1024 ** 3);
 const directory = resolve("out/core-packages", version); await mkdir(directory, { recursive: true });
 const archive = join(directory, previous.file);
+let size = 0, cached = false;
+try {
+  const info = await lstat(archive);
+  assert.ok(info.isFile() && !info.isSymbolicLink(), "Unexpected cached archive type");
+  assert.equal(info.size, asset.size, "Cached official asset size mismatch");
+  assert.equal(`sha256:${await sha256File(archive)}`, asset.digest, "Cached official asset hash mismatch");
+  size = info.size; cached = true;
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+}
+if (!cached) {
 const download = await fetch(`https://github.com/openai/codex/releases/download/rust-v${version}/${previous.file}`, { signal: AbortSignal.timeout(300000) });
 assert.ok(download.ok && download.body, "Official asset download failed");
-const output = await open(archive, "wx", 0o600), digest = createHash("sha256"); let size = 0;
+const output = await open(archive, "wx", 0o600), digest = createHash("sha256");
 const downloadReader = download.body!.getReader();
 try {
   for (;;) {
@@ -52,6 +63,7 @@ try {
   }
 } finally { await downloadReader.cancel(); await output.close(); }
 assert.equal(size, asset.size); assert.equal(`sha256:${digest.digest("hex")}`, asset.digest);
+}
 const files: CorePackage["files"] = Object.create(null), seen = new Set<string>();
 let expanded = 0; const failures: string[] = [];
 await list({ file: archive, strict: true, onReadEntry(entry) {
