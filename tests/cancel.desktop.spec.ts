@@ -131,6 +131,10 @@ test("Packaged native Axiom cancels its real command, releases its process tree 
     }, workspace);
     await nav("Add workspace");
     await nav("Models & accounts");
+    // Opening this view starts an isolated Core account read. Integration
+    // mutations are deliberately rejected until that owned operation ends.
+    await expect(page!.getByRole("article", { name: "OpenAI account", exact: true }))
+      .toContainText("Account checked", { timeout: 20000 });
     await nav("Add configuration");
     await page!.getByLabel("Configuration ID").fill("cancel-axiom");
     await page!
@@ -141,6 +145,7 @@ test("Packaged native Axiom cancels its real command, releases its process tree 
       .fill(process.env.SYNORA_TEST_ENDPOINT!);
     await page!.getByLabel("Enable configuration").check();
     await nav("Save configuration");
+    await expect(page!.getByRole("dialog")).toHaveCount(0);
     await nav("Settings");
     await page!.getByLabel("Engine provider").selectOption("cancel-axiom");
     await nav("Read live model catalog");

@@ -97,6 +97,8 @@ test("Packaged native web tools: actual model search/fetch, bundled executor, co
       }, workspace);
       await nav("Add workspace");
       await nav("Models & accounts");
+      await expect(page!.getByRole("article", { name: "OpenAI account", exact: true }))
+        .toContainText("Account checked", { timeout: 20000 });
       await nav("Add configuration");
       await page!.getByLabel("Configuration ID").fill("native-axiom");
       await page!
@@ -107,6 +109,7 @@ test("Packaged native web tools: actual model search/fetch, bundled executor, co
         .fill(process.env.SYNORA_TEST_ENDPOINT!);
       await page!.getByLabel("Enable configuration").check();
       await nav("Save configuration");
+      await expect(page!.getByRole("dialog")).toHaveCount(0);
     }
     await nav("Connectors");
     const card = () =>
