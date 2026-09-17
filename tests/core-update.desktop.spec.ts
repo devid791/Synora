@@ -2,6 +2,8 @@ import { test, expect, _electron } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { BUNDLED_CORE_VERSION } from "../src/engine/core-runtime";
+import { qualificationRuntime } from "./fixtures/qualification-runtime";
 test("Native IPC update settings, qualification gate, persistence and 150% layout", async ({}, info) => {
   const root = await mkdtemp(join(tmpdir(), "synora-update-native-"));
   const launch = () =>
@@ -17,9 +19,10 @@ test("Native IPC update settings, qualification gate, persistence and 150% layou
   let app = await launch();
   try {
     let page = await app.firstWindow();
+    await qualificationRuntime(page);
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     let card = page.getByRole("article", { name: "App Server updates" });
-    await expect(card).toContainText("0.153.4");
+    await expect(card).toContainText(BUNDLED_CORE_VERSION);
     await expect(
       card.getByRole("button", { name: "Update App Server", exact: true }),
     ).toBeDisabled();

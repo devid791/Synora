@@ -45,6 +45,7 @@ import {
 import { AppServerTransport } from "./app-server-transport";
 import { appServerEnvironment } from "./axiom-process";
 import { parseResponse } from "./protocol-validation";
+import { CoreChannel } from "./core-channel";
 
 const pointerSchema = z
   .object({
@@ -149,6 +150,7 @@ type Hooks = {
   restore(state: unknown): void;
 };
 export type CoreUpdaterOptions = {
+  channel?: CoreChannel | false;
   notify?: (message: string) => void;
   disabledReason?: string;
   // Trusted dependency injection for tests; none are renderer/HTTP parameters.
@@ -240,13 +242,27 @@ export class CoreUpdater {
   private closed = false;
   private automaticHooks?: Hooks;
   private lookup: (version: string) => QualifiedCore;
+  private channel?: CoreChannel;
   constructor(
     private root: string,
     private options: CoreUpdaterOptions = {},
   ) {
     this.root = resolve(root);
     this.path = join(root, "runtime-updates", "active.json");
-    this.lookup = options.lookup ?? qualifiedCore;
+    this.channel = options.channel === false ? undefined : options.channel ??
+      (options.lookup ? undefined : new CoreChannel(this.root, { fetch: options.fetch }));
+    this.lookup = options.lookup ?? ((version) => {
+      try { return qualifiedCore(version); }
+      catch {
+        if (!this.channel) throw Error("No qualified Core release");
+        // Already-selected runtimes retain their signed immutable authorization
+        // across network outages and catalog expiry.
+        try { return this.channel.installed(version); } catch { /* candidate */ }
+        const candidate = this.channel.candidates().find(r => r.package.version === version);
+        if (!candidate) throw Error("No signed qualified Core release for this platform");
+        return candidate;
+      }
+    });
     try {
       this.state = existsSync(this.path)
         ? stateSchema.parse(JSON.parse(readFileSync(this.path, "utf8")))
@@ -331,7 +347,8 @@ export class CoreUpdater {
     const eligible =
       (
         this.options.available ??
-        [BUNDLED_CORE_VERSION, ...qualifiedCoreUpdates.map((v) => v.package.version)]
+        [BUNDLED_CORE_VERSION, ...qualifiedCoreUpdates.map((v) => v.package.version),
+          ...(this.channel?.candidates().map(r => r.package.version) ?? [])]
       )
         .filter((v) => {
           try {
@@ -440,6 +457,21 @@ export class CoreUpdater {
     return this.checkJob.then(() => this.snapshot());
   }
   private async checkLatest() {
+    await this.checkUpstream();
+    if (this.channel && !this.closed) {
+      try {
+        await this.channel.refresh(this.controller.signal);
+        const eligible = this.snapshot().eligibleVersion;
+        if (eligible) this.message = `Core ${eligible} passed the signed update channel checks and will install when idle.`;
+        else if (this.state.latestVersion && compareCoreVersions(this.state.latestVersion, this.state.active.version) > 0)
+          this.message = `Core ${this.state.latestVersion} is available upstream; waiting for automated compatibility results in the signed channel.`;
+      } catch (e) {
+        if (!this.closed) this.message = `Signed Core channel unavailable; installed runtime unchanged. ${errorText(e)}`;
+      }
+    }
+    return this.snapshot();
+  }
+  private async checkUpstream() {
     try {
       const response = await (this.options.fetch ?? fetch)(
         "https://api.github.com/repos/openai/codex/releases/latest",
@@ -657,6 +689,14 @@ export class CoreUpdater {
     );
     this.phase = "switching";
     this.controller.signal.throwIfAborted();
+    // Persist the signature before selecting the binary, not just a mutable
+    // version string. Expiry/withdrawal during download rejects activation.
+    if (this.channel?.candidates().some(r => r.package.version === version))
+      await this.channel.retain(version);
+    else {
+      try { (this.options.lookup ?? qualifiedCore)(version); }
+      catch { throw Error("Core authorization expired or was withdrawn before activation"); }
+    }
     this.message = `App Server ${version} activated. Previous executable and data retained. No active turn was interrupted.`;
     await this.save({
       ...this.state,
@@ -725,6 +765,7 @@ export class CoreUpdater {
     await this.save({
       ...this.state,
       active: recovery.previous,
+      failedAutomaticVersion: this.state.active.version,
       previous: null,
       recoveryId: null,
       restoreState: recovery.state,

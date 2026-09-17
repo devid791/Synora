@@ -66,6 +66,9 @@ export function CoreUpdateSettings({
     const templates = [
       "Core {version} is qualified and queued. Waiting for idle sessions before automatic installation.",
       "Core {version} is available upstream. Only versions qualified for this Synora build can be installed.",
+      "Core {version} passed the signed update channel checks and will install when idle.",
+      "Core {version} is available upstream; waiting for automated compatibility results in the signed channel.",
+      "Signed Core channel unavailable; installed runtime unchanged. {detail}",
       "App Server {version} activated. Previous executable and data retained. No active turn was interrupted.",
       "Restored App Server {version} and its saved session state. Newer data remains in the retained generation.",
       "Update check failed; installed runtime unchanged. {detail}",
@@ -94,6 +97,9 @@ export function CoreUpdateSettings({
       <h2>{t("App Server updates")}</h2>
       <p className="muted">
         {t("Qualified updates install automatically when sessions and agents are idle. Synora verifies the package and startup, and retains the previous runtime and data for recovery. Unqualified upstream versions are never silently activated. Manual installation remains available.")}
+      </p>
+      <p className="muted">
+        {t("New compatible Core versions can arrive through the signed update channel without reinstalling Synora. Failed or incomplete compatibility checks keep the current runtime in place.")}
       </p>
       {!status && !error && <p role="status">{t("Reading the installed runtime…")}</p>}
       {status && (

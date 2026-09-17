@@ -12,5 +12,5 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"]
   },
-  "include": ["src", "tests", "playwright*.config.ts"]
+  "include": ["src", "tests", "playwright*.config.ts", "scripts/*core-channel*.ts", "scripts/prepare-core-candidate.ts"]
 }

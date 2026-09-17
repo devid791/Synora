@@ -490,7 +490,10 @@ test("Anthropic private transport sends only native request/auth, streams before
   });
   t.after(() => release());
   const received: any[] = [];
+  let quietClosed!: () => void;
+  const quietClosedEvent = new Promise<void>((resolve) => { quietClosed = resolve; });
   const upstream = createServer(async (req, res) => {
+    const requestMode = mode;
     const chunks = [];
     for await (const c of req) chunks.push(c);
     received.push({
@@ -508,7 +511,7 @@ test("Anthropic private transport sends only native request/auth, streams before
       { type: "text", text: "Progressive text" },
     ]);
     res.write(nativeSse(events.slice(0, -2)));
-    res.once("close", () => closed++);
+    res.once("close", () => { closed++; if (requestMode === "hold") quietClosed(); });
     if (mode === "stream") {
       await finalAllowed;
       res.end(nativeSse(events.slice(-2)));
@@ -527,7 +530,7 @@ test("Anthropic private transport sends only native request/auth, streams before
     token: "credential-fixture",
     model,
     history: history(),
-    deadlineMs: 500,
+    deadlineMs: 5000,
   });
   t.after(() => b.close());
   const opts = {
@@ -582,6 +585,12 @@ test("Anthropic private transport sends only native request/auth, streams before
     });
   await quiet.body!.getReader().read();
   ac.abort();
-  await new Promise((r) => setTimeout(r, 30));
+  // Await actual upstream cancellation rather than assuming that a heavily
+  // loaded CI event loop delivers a socket close within 30 ms. The bound stays
+  // below the bridge deadline, so a timeout cannot masquerade as cancellation.
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(Error("Quiet upstream was not cancelled")), 2000);
+    quietClosedEvent.then(() => { clearTimeout(timer); resolve(); }, reject);
+  });
   assert.ok(closed >= 2);
 });

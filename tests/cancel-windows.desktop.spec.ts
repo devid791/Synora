@@ -12,6 +12,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { EngineSnapshot } from "../src/shared/contracts";
 import { conversationTimeline } from "../src/renderer/conversation-timeline";
+import { qualificationRuntime } from "./fixtures/qualification-runtime";
 
 async function assertResumedAssistant(
   page: Page,
@@ -111,6 +112,7 @@ test("Windows native package cancels its sandboxed PowerShell tree and restores 
       env: { ...process.env, SYNORA_DATA_DIR: join(directory, "state") },
     });
     page = await app.firstWindow();
+    await qualificationRuntime(page);
     page.on("pageerror", (e) => errors.push(e.message));
     await expect(
       page.getByRole("button", { name: "Workspace", exact: true }),

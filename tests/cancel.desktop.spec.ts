@@ -11,6 +11,7 @@ import { promisify } from "node:util";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { EngineSnapshot } from "../src/shared/contracts";
+import { qualificationRuntime } from "./fixtures/qualification-runtime";
 
 const run = promisify(execFile);
 test("Packaged native Axiom cancels its real command, releases its process tree and resumes the same session", async () => {
@@ -53,6 +54,7 @@ test("Packaged native Axiom cancels its real command, releases its process tree 
       env: { ...process.env, SYNORA_DATA_DIR: state },
     });
     page = await app.firstWindow();
+    await qualificationRuntime(page);
     page.on("pageerror", (e) => errors.push(e.message));
     await expect(
       page.getByRole("button", { name: "Workspace", exact: true }),

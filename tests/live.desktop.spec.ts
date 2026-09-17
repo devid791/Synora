@@ -9,6 +9,7 @@ import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import type { EngineSnapshot } from "../src/shared/contracts";
+import { qualificationRuntime } from "./fixtures/qualification-runtime";
 test("Native desktop actual Axiom tool turn, incremental UI, app restart and original session recovery", async () => {
   if (
     process.platform === "win32" &&
@@ -28,6 +29,15 @@ test("Native desktop actual Axiom tool turn, incremental UI, app restart and ori
       : await mkdtemp(join(tmpdir(), "synora-live-native-")),
     workspace = join(dir, "workspace");
   if (prepared) {
+    if (process.env.SYNORA_CORE_QUALIFICATION_WORKTREE === "1") {
+      // Repeatable setup of this exact dedicated fixture, not user files.
+      // A previous test's AFTER sentinel must not make the next run fail before
+      // any model request. Unexpected contents still require investigation.
+      const sentinel = await readFile(join(workspace, "native-check.txt"), "utf8");
+      expect(["SYNORA_NATIVE_BEFORE\n", "SYNORA_NATIVE_AFTER\n"]).toContain(sentinel);
+      if (sentinel === "SYNORA_NATIVE_AFTER\n")
+        await writeFile(join(workspace, "native-check.txt"), "SYNORA_NATIVE_BEFORE\n");
+    }
     if (process.env.SYNORA_QA_RESET_AFTER_SUCCESS === "1") {
       // Reinitialize only our exact fixture after a recorded successful run.
       // Its old report must be archived by the caller; histories are retained.
@@ -76,6 +86,7 @@ test("Native desktop actual Axiom tool turn, incremental UI, app restart and ori
       env: { ...process.env, SYNORA_DATA_DIR: join(dir, "state") },
     });
     const page = await app.firstWindow();
+    await qualificationRuntime(page);
     page.on("pageerror", (e) => errors.push(e.message));
     await expect(
       page.getByRole("button", { name: "Workspace", exact: true }),
@@ -123,8 +134,10 @@ test("Native desktop actual Axiom tool turn, incremental UI, app restart and ori
       });
       expect(provider?.kind).toBe("provider");
       if (provider!.endpoint !== process.env.SYNORA_TEST_ENDPOINT) {
-        expect(provider!.endpoint).toBe("http://10.23.45.10:8015/codex/v1");
-        expect(process.env.SYNORA_TEST_ENDPOINT).toBe("http://10.23.45.8:8015/codex/v1");
+        // Only the already-asserted native-axiom provider in the exact owned QA
+        // home may migrate. A dedicated runner may use its loopback tunnel.
+        expect(["http:", "https:"]).toContain(new URL(process.env.SYNORA_TEST_ENDPOINT!).protocol);
+        expect(new URL(process.env.SYNORA_TEST_ENDPOINT!).pathname).toBe("/codex/v1");
         await nav(page, "Models & accounts");
         await expect(page.getByRole("article", { name: "OpenAI account", exact: true }))
           .toContainText("Account checked", { timeout: 20000 });

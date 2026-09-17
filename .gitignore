@@ -9,6 +9,7 @@ test-results/
 .env*
 !.env.example
 .DS_Store
+__pycache__/
 .ops/
 .evidence/
 *.key

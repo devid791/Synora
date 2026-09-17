@@ -10,6 +10,7 @@ import { join, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import type { EngineSnapshot } from "../src/shared/contracts";
+import { qualificationRuntime } from "./fixtures/qualification-runtime";
 
 test("Packaged native web tools: actual model search/fetch, bundled executor, cold identity and disabled catalog", async () => {
   const prepared = process.env.SYNORA_TEST_PREPARED_WINDOWS_QA;
@@ -42,6 +43,7 @@ test("Packaged native web tools: actual model search/fetch, bundled executor, co
       env: { ...process.env, SYNORA_DATA_DIR: state },
     });
     page = await app.firstWindow();
+    await qualificationRuntime(page);
     page.on("pageerror", (e) => errors.push(e.message));
     await expect(
       page.getByRole("button", { name: "Workspace", exact: true }),
