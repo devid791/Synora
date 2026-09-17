@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "@playwright/test";
-import { mkdtemp, mkdir, writeFile, readFile, readdir } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, realpath } from "node:fs/promises";
 import { join, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
@@ -22,7 +22,7 @@ test("Packaged native web tools: actual model search/fetch, bundled executor, co
   }
   const directory = prepared
     ? resolve(prepared)
-    : await mkdtemp(join(tmpdir(), "synora-packaged-web-"));
+    : await mkdtemp(join(await realpath(tmpdir()), "synora-packaged-web-"));
   const workspace = join(directory, "workspace"),
     state = join(directory, "state");
   if (!prepared) await mkdir(workspace);

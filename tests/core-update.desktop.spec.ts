@@ -1,11 +1,11 @@
 import { test, expect, _electron } from "@playwright/test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BUNDLED_CORE_VERSION } from "../src/engine/core-runtime";
 import { qualificationRuntime } from "./fixtures/qualification-runtime";
 test("Native IPC update settings, qualification gate, persistence and 150% layout", async ({}, info) => {
-  const root = await mkdtemp(join(tmpdir(), "synora-update-native-"));
+  const root = await mkdtemp(join(await realpath(tmpdir()), "synora-update-native-"));
   const launch = () =>
     _electron.launch({
       executablePath: process.env.SYNORA_TEST_EXECUTABLE,

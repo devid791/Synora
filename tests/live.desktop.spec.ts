@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "@playwright/test";
-import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, realpath } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import type { EngineSnapshot } from "../src/shared/contracts";
@@ -26,7 +26,7 @@ test("Native desktop actual Axiom tool turn, incremental UI, app restart and ori
   }
   const dir = prepared
       ? resolve(prepared)
-      : await mkdtemp(join(tmpdir(), "synora-live-native-")),
+      : await mkdtemp(join(await realpath(tmpdir()), "synora-live-native-")),
     workspace = join(dir, "workspace");
   if (prepared) {
     if (process.env.SYNORA_CORE_QUALIFICATION_WORKTREE === "1") {

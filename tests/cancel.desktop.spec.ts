@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "@playwright/test";
-import { mkdtemp, mkdir, writeFile, readFile, access } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, access, realpath } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { join } from "node:path";
@@ -17,7 +17,7 @@ const run = promisify(execFile);
 test("Packaged native Axiom cancels its real command, releases its process tree and resumes the same session", async () => {
   if (!["linux", "darwin"].includes(process.platform))
     throw Error("This POSIX command test does not qualify the Windows sandbox");
-  const directory = await mkdtemp(join(tmpdir(), "synora-cancel-native-"));
+  const directory = await mkdtemp(join(await realpath(tmpdir()), "synora-cancel-native-"));
   const workspace = join(directory, "workspace"),
     state = join(directory, "state");
   await mkdir(workspace);
