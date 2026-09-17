@@ -1,0 +1,5 @@
+self-hosted-runner:
+  labels:
+    - synora-qa-linux-x64
+    - synora-qa-macos-arm64
+    - synora-qa-windows-x64
