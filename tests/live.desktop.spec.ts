@@ -123,6 +123,11 @@ test("Native desktop actual Axiom tool turn, incremental UI, app restart and ori
         workspaceId,
         "select our fixture, not the last provider workspace",
       ).toBeTruthy();
+      // The reusable QA profile retains panel preferences from prior UI tests.
+      // Reopen through the real control, rather than selecting a hidden field.
+      const filesToggle = page.getByTestId("toggle-files");
+      if (await filesToggle.getAttribute("aria-expanded") === "false")
+        await filesToggle.click();
       await page.getByLabel("Active workspace").selectOption(workspaceId!);
       // The dedicated prepared Windows fixture may outlive the lab's endpoint
       // address. Migrate only its named provider through the normal editor,

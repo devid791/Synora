@@ -98,6 +98,9 @@ test("Packaged native web tools: actual model search/fetch, bundled executor, co
         return result.value.workspaces.find((entry) => entry.path === path)?.id;
       }, workspace);
       expect(workspaceId, "reuse only the prepared QA workspace").toBeTruthy();
+      const filesToggle = page!.getByTestId("toggle-files");
+      if (await filesToggle.getAttribute("aria-expanded") === "false")
+        await filesToggle.click();
       await page!.getByLabel("Active workspace").selectOption(workspaceId!);
     } else {
       await app!.evaluate(({ dialog }, path) => {
