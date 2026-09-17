@@ -51,7 +51,6 @@ export class AppServerTransport {
   private dead: AppServerError | null = null;
   private closing: Promise<void> | null = null;
   private exited: Promise<void>;
-  private stdioClosed = false;
   private stderrTail = "";
   private resourceCleanup?: Promise<void>;
   constructor(private options: TransportOptions) {
@@ -65,7 +64,6 @@ export class AppServerTransport {
     });
     this.exited = new Promise((resolve) => {
       this.child.once("close", (code, signal) => {
-        this.stdioClosed = true;
         if (!this.dead)
           this.fail(
             new AppServerError(
@@ -254,6 +252,22 @@ export class AppServerTransport {
     this.closing = this.shutdown().finally(() => this.releaseResources());
     return this.closing;
   }
+  private async stopOwnedPosixGroup(pid: number) {
+    const signal = (value: NodeJS.Signals | 0) => {
+      try { process.kill(-pid, value); return true; }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
+        throw error;
+      }
+    };
+    if (!signal("SIGTERM")) return;
+    const deadline = performance.now() + 2000;
+    while (signal(0) && performance.now() < deadline)
+      await new Promise(resolve => setTimeout(resolve, 25));
+    // Quiet descendants can outlive the leader without keeping its pipes open.
+    // Group ownership, not leader exitCode or stdio state, bounds their lifetime.
+    if (signal(0)) signal("SIGKILL");
+  }
   private async shutdown() {
     this.fail(
       new AppServerError(
@@ -279,7 +293,10 @@ export class AppServerTransport {
           timer = setTimeout(() => resolve(false), 2000);
         }),
       ]);
-      if (graceful) return;
+      if (graceful) {
+        if (process.platform !== "win32") await this.stopOwnedPosixGroup(pid);
+        return;
+      }
     } finally {
       clearTimeout(timer);
     }
@@ -293,23 +310,7 @@ export class AppServerTransport {
         kill.once("close", () => resolve());
       });
     } else {
-      try {
-        process.kill(-pid, "SIGTERM");
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
-      }
-      timer = setTimeout(() => {
-        // The leader can exit while descendants still own its stdout/stderr.
-        // Escalate for the original process group until the pipes really close,
-        // not only while the already-exited leader is alive.
-        if (!this.stdioClosed) {
-          try {
-            process.kill(-pid, "SIGKILL");
-          } catch {
-            /* already exited */
-          }
-        }
-      }, 2000);
+      await this.stopOwnedPosixGroup(pid);
     }
     try {
       await this.exited;

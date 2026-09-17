@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import {
   AppServerTransport,
   AppServerError,
@@ -129,11 +131,11 @@ test("Core resources are released exactly once after normal close, crash or spaw
   }
 });
 
-if (process.platform !== "win32") test("Closing an exited Core kills its owned pipe-holding descendant even when it ignores SIGTERM", async () => {
+if (process.platform !== "win32") for (const method of ["orphan-exit", "orphan-exit-quiet"]) test(`Closing Core reaps its owned SIGTERM-resistant descendant: ${method}`, async () => {
   const { transport: t } = create();
   let deadline: ReturnType<typeof setTimeout> | undefined;
   try {
-    const childPid = await t.request("orphan-exit", {});
+    const childPid = await t.request(method, {});
     assert.equal(typeof childPid, "number");
     // Observe the leader exit, not a timing guess; the descendant still holds
     // stdout/stderr open, so Node has not emitted the child's close event.
@@ -153,6 +155,18 @@ if (process.platform !== "win32") test("Closing an exited Core kills its owned p
       }),
     ]);
     assert.equal(t.diagnostics.closed, true);
+    const stopped = async () => {
+      try {
+        const result = await promisify(execFile)("ps", ["-p", String(childPid), "-o", "stat="]);
+        return result.stdout.trim().startsWith("Z");
+      } catch (error) {
+        if ((error as { code?: number }).code === 1) return true;
+        throw error;
+      }
+    };
+    for (let i = 0; i < 100 && !await stopped(); i++)
+      await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(await stopped(), true, "Owned descendant must no longer execute");
   } finally {
     clearTimeout(deadline);
     // Exact process group created by this fixture, including failed assertions.

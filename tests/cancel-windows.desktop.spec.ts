@@ -197,6 +197,12 @@ test("Windows native package cancels its sandboxed PowerShell tree and restores 
         timeout: 15000,
       })
       .toBe(false);
+    // Cancellation closes the owned Core to release its response pump. The
+    // enabled reconnect loop then restores the durable interrupted turn.
+    await expect.poll(() => snapshot(), { timeout: 60000 }).toMatchObject({
+      connection: "live", status: "interrupted", cleanupPending: false,
+      sessionId: running.sessionId, threadId: running.threadId, turnId: running.turnId,
+    });
     const interrupted = await snapshot();
     expect(interrupted.sessionId).toBe(running.sessionId);
     expect(interrupted.turnId).toBe(running.turnId);

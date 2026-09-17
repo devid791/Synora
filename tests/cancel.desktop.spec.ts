@@ -209,6 +209,10 @@ test("Packaged native Axiom cancels its real command, releases its process tree 
         timeout: 15000,
       })
       .toBe(false);
+    await expect.poll(() => snapshot(), { timeout: 60000 }).toMatchObject({
+      connection: "live", status: "interrupted", cleanupPending: false,
+      sessionId: running.sessionId, threadId: running.threadId, turnId: running.turnId,
+    });
     const interrupted = await snapshot();
     expect(interrupted.turnId).toBe(running.turnId);
     expect(interrupted.threadId).toBe(running.threadId);

@@ -26,12 +26,14 @@ input.on("line", (line) => {
       },
     });
   if (m.method === "never") return;
-  if (m.method === "orphan-exit") {
+  if (["orphan-exit", "orphan-exit-quiet"].includes(m.method)) {
     const child = spawn(process.execPath, ["-e", `
       process.on('SIGTERM', () => {});
       process.send('ready');
       setInterval(() => {}, 1000);
-    `], { stdio: ["ignore", process.stdout, process.stderr, "ipc"] });
+    `], { stdio: m.method === "orphan-exit-quiet"
+      ? ["ignore", "ignore", "ignore", "ipc"]
+      : ["ignore", process.stdout, process.stderr, "ipc"] });
     child.once("message", () => {
       process.stdout.write(JSON.stringify({ id: m.id, result: child.pid }) + "\n", () => process.exit(0));
     });
