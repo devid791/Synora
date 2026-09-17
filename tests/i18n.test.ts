@@ -41,8 +41,8 @@ test("Every shipped catalog has six translations with the exact original placeho
   );
   assert.equal(
     files.length,
-    14,
-    "All fourteen independently translated UI domains, including computer control, must be present",
+    15,
+    "All fifteen independently translated UI domains, including server hardware, must be present",
   );
   const placeholders = (s: string) =>
     [...s.matchAll(/\{([A-Za-z_][A-Za-z_0-9]*)\}/g)].map((x) => x[1]).sort();

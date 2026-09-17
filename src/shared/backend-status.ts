@@ -89,4 +89,5 @@ export type BackendStatus =
       resources: BackendProbe<z.infer<typeof resourceStatusSchema>>;
       kv?: BackendProbe<z.infer<typeof kvStatusSchema>>;
       gpu?: BackendProbe<import("./gpu-telemetry").GpuTelemetry>;
+      hardware?: BackendProbe<import("./hardware").Hardware>;
     };

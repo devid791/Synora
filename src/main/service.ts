@@ -642,11 +642,16 @@ export class LocalService {
             reason: `This ${providerDefinitions[provider.providerType!].name} provider has no Axiom GPU or KV telemetry. Per-turn usage is reported separately by Core.`,
           };
         }
-        const [observed, gpu] = await Promise.all([
-          this.credentials.load(provider).then(token => this.backend.read(provider.endpoint, token)),
-          this.gpuCollector.read(provider.endpoint),
-        ]);
-        return observed.mode === "live" && gpu ? { ...observed, gpu } : observed;
+        const observed = await this.credentials.load(provider).then(token => this.backend.read(provider.endpoint, token));
+        if (observed.mode !== "live" || observed.hardware?.state === "available") return observed;
+        // Legacy collectors remain optional on older servers. Never hide an
+        // authentication/TLS/schema failure behind a different hardware source.
+        if (observed.hardware?.state === "unavailable" &&
+            [404, 405, 501].includes(observed.hardware.httpStatus ?? 0)) {
+          const gpu = await this.gpuCollector.read(provider.endpoint);
+          if (gpu?.state === "available") return { ...observed, gpu };
+        }
+        return observed;
       }),
       closeReady: ok((id, unsavedFile) => host.closeReady(id, unsavedFile)),
       capabilities: ok(() => ({

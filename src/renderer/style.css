@@ -1962,6 +1962,14 @@ footer.status-bar {
 .telemetry-values .app-server-status { white-space: normal; }
 .telemetry-caption { display: block; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 .telemetry-gpu-device { padding-block: 4px; }
+.hardware-telemetry { width: 100%; min-width: 0; font-size: 12px; }
+.hardware-heading, .hardware-pool { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.hardware-node { border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-block: 8px; }
+.hardware-device { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; padding-block: 8px; }
+.hardware-identity, .hardware-device > small, .hardware-pool > small { grid-column: 1 / -1; color: var(--muted); overflow-wrap: anywhere; }
+.hardware-pool { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 6px; }
+.hardware-pool > small { flex-basis: 100%; }
+.hardware-telemetry details p { overflow-wrap: anywhere; }
 @container session-status (max-width: 980px) {
   .status-gpu-memory { display: none; }
   .status-connection { max-width: 280px; }

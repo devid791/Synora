@@ -2,6 +2,7 @@ import type { z } from "zod";
 import { axiomEndpoint } from "./axiom-process";
 import { bearerHeaders } from "./axiom-auth";
 import { createHash } from "node:crypto";
+import { hardwareSchema, hardwareGpuProbe } from "../shared/hardware";
 import {
   runtimeStatusSchema,
   resourceStatusSchema,
@@ -54,13 +55,16 @@ export class AxiomStatus {
         headers,
       ),
       this.probe(`${root}/ops/kv`, kvStatusSchema, controller.signal, headers),
+      this.probe(`${root}/ops/hardware`, hardwareSchema, controller.signal, headers),
     ]).then(
-      ([runtime, resources, kv]): BackendStatus => ({
+      ([runtime, resources, kv, hardware]): BackendStatus => ({
         mode: "live",
         endpoint,
         runtime,
         resources,
         kv,
+        hardware,
+        gpu: hardwareGpuProbe(hardware),
       }),
     );
     const entry = {

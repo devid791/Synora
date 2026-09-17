@@ -2,11 +2,13 @@ import type { BackendStatus } from "../shared/backend-status";
 import type { EngineSnapshot } from "../shared/contracts";
 import { sampleStale } from "../shared/resource-telemetry";
 import { gpuProbeState } from "../shared/gpu-telemetry";
+import { HardwareTelemetry } from "./HardwareTelemetry";
+import { messages as hardwareMessages } from "./locales/hardware";
 import { useI18n } from "./i18n";
 import { messages as composerMessages } from "./locales/composer";
 import { messages as statusMessages } from "./locales/status-bar";
 import { messages as gpuMessages } from "./locales/gpu-telemetry";
-const messages = { ...composerMessages, ...statusMessages, ...gpuMessages };
+const messages = { ...composerMessages, ...statusMessages, ...gpuMessages, ...hardwareMessages };
 
 /** Core turn activity is event-driven; physical utilization is sensor-only.
  * A sub-two-second turn must never be represented as an idle GPU task. */
@@ -28,6 +30,7 @@ export function LiveGpuStatus({
     new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(v);
   const runtime = backend?.mode === "live" ? backend.runtime : undefined;
   const gpu = backend?.mode === "live" ? backend.gpu : undefined;
+  const hardware = backend?.mode === "live" && backend.hardware?.state === "available" ? backend.hardware.data : null;
   const state = gpuProbeState(gpu, now, error);
   const devices =
     state === "available" && gpu?.state === "available"
@@ -111,7 +114,7 @@ export function LiveGpuStatus({
         {device.memoryUsedBytes !== null &&
           device.memoryTotalBytes !== null && (
             <span className="status-gpu-memory">
-              {" · "}VRAM {fixed(device.memoryUsedBytes / 1024 ** 3, 1)}/
+              {" · "}{t(device.memoryKind === "unified" ? "Unified memory" : device.memoryKind === "unknown" ? "Memory type unknown" : "VRAM")} {fixed(device.memoryUsedBytes / 1024 ** 3, 1)}/
               {fixed(device.memoryTotalBytes / 1024 ** 3, 1)} GiB
             </span>
           )}
@@ -134,7 +137,7 @@ export function LiveGpuStatus({
           "Sensors come from the Axiom host, which may be a different computer. Host-wide usage does not identify which GPU this conversation uses.",
         )}
       </span>
-      {devices?.length ? (
+      {hardware ? <HardwareTelemetry hardware={hardware} now={error ? Number.MAX_SAFE_INTEGER : now} /> : devices?.length ? (
         devices.map((device) => (
           <span key={device.id} className="telemetry-gpu-device">
             <span

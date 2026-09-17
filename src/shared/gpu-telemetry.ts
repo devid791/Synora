@@ -11,9 +11,12 @@ export const gpuDeviceSchema = z
     vendor: z.enum(["nvidia", "amd", "intel", "other"]),
     pciBusId: z
       .string()
-      .regex(/^[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$/i)
+      .regex(/^[0-9a-f]{4,8}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$/i)
       .nullable(),
-    source: z.enum(["nvidia-smi", "linux-drm"]),
+    source: z.enum(["nvidia-smi", "linux-drm", "axiom-hardware"]),
+    nodeId: z.string().optional(),
+    memoryPoolId: z.string().optional(),
+    memoryKind: z.enum(["dedicated", "unified", "unknown"]).optional(),
     utilizationPercent: z.number().finite().min(0).max(100).nullable(),
     memoryTotalBytes: bytes.positive().nullable(),
     memoryUsedBytes: bytes.nullable(),
@@ -43,6 +46,7 @@ export const gpuTelemetrySchema = z
           "nvidia-invalid",
           "drm-unavailable",
           "drm-device-unavailable",
+          "device-sensor-unavailable",
         ]),
       )
       .max(4),

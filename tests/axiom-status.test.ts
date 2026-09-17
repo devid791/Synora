@@ -82,6 +82,7 @@ test("Backend status uses only independent GETs, concurrent callers share probes
     assert.deepEqual(a, b);
     assert.deepEqual(await monitor.read(s.endpoint), a);
     assert.deepEqual(calls.sort(), [
+      "GET /ops/hardware",
       "GET /ops/kv",
       "GET /ops/runtime",
       "GET /ops/usage",
@@ -177,7 +178,7 @@ test("Malformed, oversized and redirected status never leaks fields or follows a
   }
 });
 test(
-  "Probe deadline and owned disposal cancel both requests without affecting generation transport",
+  "Probe deadline and owned disposal cancel all requests without affecting generation transport",
   { timeout: 5000 },
   async () => {
     let received = 0,
@@ -193,9 +194,9 @@ test(
     });
     const s = await server((_req, res) => {
       if (cancelling) {
-        if (++received === 2) arrival();
+        if (++received === 4) arrival();
         res.once("close", () => {
-          if (++closed === 2) allClosed();
+          if (++closed === 4) allClosed();
         });
       }
     });
@@ -215,7 +216,7 @@ test(
       assert.equal(b.runtime.state, "unavailable");
       await assert.rejects(cancellationMonitor.read(s.endpoint), /closed/);
       await cancelled;
-      assert.equal(closed, 2);
+      assert.equal(closed, 4);
     } finally {
       m.dispose();
       cancellationMonitor.dispose();

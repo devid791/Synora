@@ -5,6 +5,7 @@ import { appendMemoryPoint, MEMORY_HISTORY_MS, requestRates, sampleStale, utiliz
 import { contextView } from "./ContextUsage";
 import { BackendStatus } from "./BackendStatus";
 import { GpuTelemetry } from "./GpuTelemetry";
+import { HardwareTelemetry } from "./HardwareTelemetry";
 import { useI18n } from "./i18n";
 import { messages } from "./locales/resource-telemetry";
 
@@ -129,7 +130,7 @@ export function ResourceTelemetry({ api, engine, metrics, axiom }: {
           <small>{t(turn ? "Reported counters update when Core emits usage." : "Historical counters; no current-turn report yet.")}</small>
         </article>
       </div>
-      {status?.gpu && <GpuTelemetry probe={status.gpu} now={now} />}
+      {status?.hardware?.state === "available" ? <HardwareTelemetry hardware={status.hardware.data} now={now} /> : status?.gpu && <GpuTelemetry probe={status.gpu} now={now} />}
       <div className="resource-charts">
         <article className="card resource-history"><h3>{t("Local memory history")}</h3><p>{t("Last 120 seconds · service RSS / host RAM")}</p>
           {visibleHistory.length ? <svg className="resource-line-chart" viewBox="0 0 300 84" role="img" aria-label={t("Local memory history")}>
