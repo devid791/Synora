@@ -51,6 +51,17 @@ test("Packaged native web tools: actual model search/fetch, bundled executor, co
   };
   const nav = (name: string) =>
     page.getByRole("button", { name, exact: true }).click();
+  const catalogIdle = async () => {
+    // Connectors starts a real catalog read on entry. Null is not ready: wait
+    // for its first completed snapshot and owned process cleanup before edits.
+    await expect.poll(async () => page.evaluate(async () => {
+      const result = await window.synora.coreCatalogStatus();
+      if (!result.ok) throw Error(result.error.message);
+      if (result.value?.cleanupFailed) throw Error("Catalog cleanup failed");
+      return !!result.value?.completedAt && !result.value.busy;
+    }), { timeout: 90000 }).toBe(true);
+    await expect(page.getByRole("button", { name: "Read Core catalog", exact: true })).toBeEnabled();
+  };
   const snapshot = async () => {
     lastSnapshot = await page.evaluate(async () => {
       const result = await window.synora.engineSnapshot();
@@ -112,6 +123,7 @@ test("Packaged native web tools: actual model search/fetch, bundled executor, co
       await expect(page!.getByRole("dialog")).toHaveCount(0);
     }
     await nav("Connectors");
+    await catalogIdle();
     const card = () =>
       page
         .locator("article.card")
@@ -248,6 +260,7 @@ test("Packaged native web tools: actual model search/fetch, bundled executor, co
       .digest("hex");
     expect(helperHash).toBe(manifest.sha256);
     await nav("Connectors");
+    await catalogIdle();
     await expect(card()).toContainText("2 mounted tools");
     await card().getByText("Core tool catalog", { exact: true }).click();
     await expect(card().getByText("web_search", { exact: true })).toBeVisible();
@@ -294,6 +307,7 @@ test("Packaged native web tools: actual model search/fetch, bundled executor, co
     for (const call of calls)
       await expect(page!.locator(`[data-item-id="${call.id}"]`)).toHaveCount(1);
     await nav("Connectors");
+    await catalogIdle();
     await card().getByRole("button", { name: "Edit", exact: true }).click();
     await page!.getByLabel("Enable configuration").uncheck();
     await nav("Save configuration");
