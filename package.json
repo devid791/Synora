@@ -1,6 +1,6 @@
 {
   "name": "synora-harness-desktop",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "author": {
     "name": "Synora"
@@ -17,6 +17,7 @@
     "build": "node scripts/prepare-native.mjs && node scripts/brand.mjs && node scripts/build.mjs",
     "build:web": "node scripts/prepare-native.mjs && node scripts/brand.mjs && node scripts/build-web.mjs",
     "start:web": "node scripts/prepare-native.mjs && node out/web/server.mjs",
+    "package:web": "npm run build:web && node scripts/package-web.mjs",
     "test:web": "playwright test --config playwright.web.config.ts",
     "start": "electron .",
     "pretest": "node scripts/prepare-native.mjs",

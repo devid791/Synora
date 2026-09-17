@@ -37,11 +37,18 @@ export async function startWebService(options: Options) {
   const sessions = new Map<string, { csrf: string; expires: number }>();
   const cookieName = "synora_local";
   const emit = (event: DesktopEvent) => {
+    // Disposal itself emits state changes. Ended SSE responses must never receive
+    // these final events (nor callbacks from a browser tab closing asynchronously).
+    if (closing) return;
     const record = { id: ++sequence, event };
     journal.push(record);
     if (journal.length > 2000) journal.shift();
     const data = `id: ${record.id}\ndata: ${JSON.stringify(event)}\n\n`;
     for (const stream of streams) {
+      if (stream.destroyed || stream.writableEnded) {
+        streams.delete(stream);
+        continue;
+      }
       // Bounded backpressure: reconnect uses the journal or an authoritative snapshot.
       if (stream.writableLength > 1024 * 1024) {
         stream.destroy();
@@ -329,6 +336,7 @@ export async function startWebService(options: Options) {
       (closingPromise ??= (async () => {
         closing = true;
         for (const stream of streams) stream.end();
+        streams.clear();
         const closed = new Promise<void>((r) => server.close(() => r()));
         server.closeAllConnections();
         await service.dispose();

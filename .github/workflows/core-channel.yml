@@ -83,6 +83,7 @@ jobs:
       - name: Verify candidate and build native components
         env:
           CORE_VERSION: ${{ needs.discover.outputs.version }}
+          SYNORA_CORE_METADATA_TOKEN: ${{ github.token }}
         run: node scripts/run-core-channel-job.mjs prepare
       - name: Package isolated candidate
         run: node scripts/run-core-channel-job.mjs package

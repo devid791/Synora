@@ -17,7 +17,13 @@ const key = `${process.platform}-${process.arch}`;
 const lock = JSON.parse(await readFile("docs/core-runtime-lock.json", "utf8"));
 const previous = lock.targets[key]; assert.ok(previous, "Unsupported native platform");
 const response = await fetch(`https://api.github.com/repos/openai/codex/releases/tags/rust-v${version}`, {
-  redirect: "error", signal: AbortSignal.timeout(15000), headers: { Accept: "application/vnd.github+json" },
+  // The workflow's short-lived read-only token avoids shared-IP anonymous rate
+  // limits. It is never attached to asset downloads or followed across redirects.
+  redirect: "error", signal: AbortSignal.timeout(15000), headers: {
+    Accept: "application/vnd.github+json",
+    ...(process.env.SYNORA_CORE_METADATA_TOKEN
+      ? { Authorization: `Bearer ${process.env.SYNORA_CORE_METADATA_TOKEN}` } : {}),
+  },
 });
 assert.ok(response.ok, `Official release HTTP ${response.status}`);
 assert.ok(response.body);

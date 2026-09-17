@@ -7,6 +7,32 @@ import { request } from "node:http";
 import { startWebService } from "../src/web/server";
 import { terminalMarker } from "./terminal-fixture";
 
+test("Web shutdown ends a connected SSE stream before disposal emits more state", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "synora-web-sse-close-"));
+  await fs.mkdir(path.join(dir, "assets"));
+  await fs.writeFile(path.join(dir, "assets/index.html"), "fixture");
+  const server = await startWebService({
+    storePath: path.join(dir, "state.sqlite"), assets: path.join(dir, "assets"),
+  });
+  const abort = new AbortController();
+  try {
+    const boot = await fetch(server.url + "/api/bootstrap", { headers: { Origin: server.url } });
+    const { csrf } = await boot.json();
+    const stream = await fetch(server.url + "/api/events", {
+      signal: abort.signal,
+      headers: { Origin: server.url, Cookie: boot.headers.get("set-cookie")!.split(";")[0], "X-Synora-CSRF": csrf },
+    });
+    assert.equal(stream.status, 200);
+    await server.close();
+    await server.close(); // idempotent even with events queued during disposal
+    await stream.body?.cancel();
+  } finally {
+    abort.abort();
+    await server.close();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("Loopback web boundary rejects hostile Host, Origin, CSRF, malformed and unknown operations; same-origin service persists real work", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "synora-web-service-"));
   await fs.mkdir(path.join(dir, "assets"));
