@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BackendProbe } from "./backend-status";
+import { sampleClockNow, type BackendProbe } from "./backend-status";
 import { sampleStale } from "./resource-telemetry";
 
 const bytes = z.number().int().nonnegative().safe();
@@ -73,7 +73,7 @@ export function gpuProbeState(
     return probe.code === "GPU_NOT_CONFIGURED"
       ? "not-configured"
       : "unavailable";
-  if (sampleStale(probe.data.sampledAt, now)) return "stale";
+  if (sampleStale(probe.data.sampledAt, sampleClockNow(probe, now))) return "stale";
   if (!probe.data.devices.length)
     return probe.data.issues.length ? "unavailable" : "empty";
   return "available";

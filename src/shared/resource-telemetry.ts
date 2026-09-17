@@ -14,7 +14,7 @@ export function utilization(used: unknown, total: unknown) {
   return { used, total, percent, fill: Math.min(100, percent) };
 }
 export function sampleStale(at: number | null | undefined, now: number) {
-  return !finiteNonnegative(at) || at > now + 1000 || now - at > TELEMETRY_STALE_MS;
+  return !finiteNonnegative(now) || !finiteNonnegative(at) || at > now + 1000 || now - at > TELEMETRY_STALE_MS;
 }
 export type MemoryPoint = { at: number; rssBytes: number; totalBytes: number };
 export function appendMemoryPoint(points: MemoryPoint[], point: MemoryPoint, now: number) {

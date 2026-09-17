@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BackendProbe } from "./backend-status";
+import { sampleClockNow, type BackendProbe } from "./backend-status";
 import type { GpuTelemetry } from "./gpu-telemetry";
 import { sampleStale } from "./resource-telemetry";
 
@@ -92,12 +92,13 @@ export function memorySummary(h: Hardware, now: number = Date.now()) {
 export function hardwareGpuProbe(probe: BackendProbe<Hardware>): BackendProbe<GpuTelemetry> {
   if (probe.state === "unavailable") return probe;
   const h = probe.data;
+  const timestamps = [h.sampledAt, ...h.nodes.filter(n => n.state === "online").map(n => n.sampledAt)];
+  const now = sampleClockNow(probe, probe.observedAt);
   return {...probe, data: {
     schema: "synora_gpu_telemetry_v1", scope: "host-devices-not-inference-allocation",
     // Preserve future timestamps as invalid rather than hiding clock skew with min().
-    sampledAt: h.nodes.some(n => n.state === "online" && n.sampledAt > probe.observedAt + 1000)
-      ? Math.max(...h.nodes.map(n => n.sampledAt))
-      : Math.min(h.sampledAt, ...h.nodes.filter(n => n.state === "online").map(n => n.sampledAt)),
+    sampledAt: timestamps.some(at => at > now + 1000)
+      ? Math.max(...timestamps) : Math.min(...timestamps),
     durationMs: h.durationMs,
     devices: h.devices.filter(d => h.nodes.find(n => n.id === d.nodeId)?.state === "online").map(d => {
       const pool = h.memoryPools.find(p => p.id === d.memoryPoolId)!;

@@ -1,4 +1,4 @@
-import type { BackendStatus } from "../shared/backend-status";
+import { sampleClockNow, type BackendStatus } from "../shared/backend-status";
 import type { EngineSnapshot } from "../shared/contracts";
 import { sampleStale } from "../shared/resource-telemetry";
 import { gpuProbeState } from "../shared/gpu-telemetry";
@@ -30,7 +30,8 @@ export function LiveGpuStatus({
     new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(v);
   const runtime = backend?.mode === "live" ? backend.runtime : undefined;
   const gpu = backend?.mode === "live" ? backend.gpu : undefined;
-  const hardware = backend?.mode === "live" && backend.hardware?.state === "available" ? backend.hardware.data : null;
+  const hardwareProbe = backend?.mode === "live" && backend.hardware?.state === "available" ? backend.hardware : null;
+  const hardware = hardwareProbe?.data;
   const state = gpuProbeState(gpu, now, error);
   const devices =
     state === "available" && gpu?.state === "available"
@@ -137,7 +138,7 @@ export function LiveGpuStatus({
           "Sensors come from the Axiom host, which may be a different computer. Host-wide usage does not identify which GPU this conversation uses.",
         )}
       </span>
-      {hardware ? <HardwareTelemetry hardware={hardware} now={error ? Number.MAX_SAFE_INTEGER : now} /> : devices?.length ? (
+      {hardware && hardwareProbe ? <HardwareTelemetry hardware={hardware} now={error ? Number.MAX_SAFE_INTEGER : sampleClockNow(hardwareProbe, now)} /> : devices?.length ? (
         devices.map((device) => (
           <span key={device.id} className="telemetry-gpu-device">
             <span

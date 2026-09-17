@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import type { DesktopAPI, EngineSnapshot, LocalMetrics } from "../shared/contracts";
-import type { BackendStatus as Status } from "../shared/backend-status";
+import { sampleClockNow, type BackendStatus as Status } from "../shared/backend-status";
 import { appendMemoryPoint, MEMORY_HISTORY_MS, requestRates, sampleStale, utilization, type MemoryPoint } from "../shared/resource-telemetry";
 import { contextView } from "./ContextUsage";
 import { BackendStatus } from "./BackendStatus";
@@ -130,7 +130,7 @@ export function ResourceTelemetry({ api, engine, metrics, axiom }: {
           <small>{t(turn ? "Reported counters update when Core emits usage." : "Historical counters; no current-turn report yet.")}</small>
         </article>
       </div>
-      {status?.hardware?.state === "available" ? <HardwareTelemetry hardware={status.hardware.data} now={now} /> : status?.gpu && <GpuTelemetry probe={status.gpu} now={now} />}
+      {status?.hardware?.state === "available" ? <HardwareTelemetry hardware={status.hardware.data} now={sampleClockNow(status.hardware, now)} /> : status?.gpu && <GpuTelemetry probe={status.gpu} now={now} />}
       <div className="resource-charts">
         <article className="card resource-history"><h3>{t("Local memory history")}</h3><p>{t("Last 120 seconds · service RSS / host RAM")}</p>
           {visibleHistory.length ? <svg className="resource-line-chart" viewBox="0 0 300 84" role="img" aria-label={t("Local memory history")}>

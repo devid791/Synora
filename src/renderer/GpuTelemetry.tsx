@@ -1,4 +1,4 @@
-import type { BackendProbe } from "../shared/backend-status";
+import { sampleClockNow, type BackendProbe } from "../shared/backend-status";
 import type { GpuTelemetry as Sample } from "../shared/gpu-telemetry";
 import { sampleStale, utilization } from "../shared/resource-telemetry";
 import { useI18n } from "./i18n";
@@ -11,7 +11,7 @@ export function GpuTelemetry({ probe, now }: { probe: BackendProbe<Sample>; now:
   const fixed = (value: number, digits = 1) => new Intl.NumberFormat(locale === "pt" ? "pt-PT" : locale,
     { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
   const data = probe.state === "available" ? probe.data : null;
-  const stale = data ? sampleStale(data.sampledAt, now) : true;
+  const stale = data ? sampleStale(data.sampledAt, sampleClockNow(probe, now)) : true;
   const bar = (label: string, used: number | null, total: number | null, text: string) => {
     const value = utilization(used, total);
     return <div className="gpu-measurement"><span>{label}</span><strong>{value ? text : t("Unavailable")}</strong>

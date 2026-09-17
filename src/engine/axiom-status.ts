@@ -3,6 +3,7 @@ import { axiomEndpoint } from "./axiom-process";
 import { bearerHeaders } from "./axiom-auth";
 import { createHash } from "node:crypto";
 import { hardwareSchema, hardwareGpuProbe } from "../shared/hardware";
+import { TelemetryClock } from "./telemetry-clock";
 import {
   runtimeStatusSchema,
   resourceStatusSchema,
@@ -19,6 +20,7 @@ export class AxiomStatus {
     controller: AbortController;
     promise: Promise<BackendStatus>;
     finishedAt?: number;
+    hardwareClock: TelemetryClock;
   };
   private disposed = false;
   constructor(private options: { timeoutMs?: number; cacheMs?: number } = {}) {}
@@ -34,11 +36,13 @@ export class AxiomStatus {
     if (
       old?.endpoint === endpoint &&
       old.authIdentity === authIdentity &&
-      (!old.finishedAt ||
-        Date.now() - old.finishedAt < (this.options.cacheMs ?? 2000))
+      (old.finishedAt === undefined ||
+        performance.now() - old.finishedAt < (this.options.cacheMs ?? 2000))
     )
       return old.promise;
     old?.controller.abort();
+    const hardwareClock = old?.endpoint === endpoint && old.authIdentity === authIdentity
+      ? old.hardwareClock : new TelemetryClock();
     const controller = new AbortController();
     const root = endpoint.slice(0, -"/codex/v1".length);
     const promise = Promise.all([
@@ -55,7 +59,7 @@ export class AxiomStatus {
         headers,
       ),
       this.probe(`${root}/ops/kv`, kvStatusSchema, controller.signal, headers),
-      this.probe(`${root}/ops/hardware`, hardwareSchema, controller.signal, headers),
+      this.probe(`${root}/ops/hardware`, hardwareSchema, controller.signal, headers, hardwareClock),
     ]).then(
       ([runtime, resources, kv, hardware]): BackendStatus => ({
         mode: "live",
@@ -72,11 +76,12 @@ export class AxiomStatus {
       authIdentity,
       controller,
       promise,
+      hardwareClock,
       finishedAt: undefined as number | undefined,
     };
     this.current = entry;
     void promise.then(() => {
-      entry.finishedAt = Date.now();
+      entry.finishedAt = performance.now();
     });
     return promise;
   }
@@ -93,8 +98,9 @@ export class AxiomStatus {
     schema: z.ZodType<T>,
     parent: AbortSignal,
     headers: Record<string, string>,
+    sampleClock?: TelemetryClock,
   ): Promise<BackendProbe<T>> {
-    const start = Date.now();
+    const start = performance.now();
     let httpStatus: number | null = null;
     const controller = new AbortController();
     const cancel = () => controller.abort();
@@ -108,6 +114,7 @@ export class AxiomStatus {
         redirect: "manual",
         signal: controller.signal,
         headers,
+        cache: "no-store",
       });
       httpStatus = response.status;
       if (!response.ok) {
@@ -145,18 +152,22 @@ export class AxiomStatus {
           ),
         ),
       );
+      const finished = performance.now();
+      const durationMs = finished - start;
+      const serverTimeAtObservation = sampleClock?.observe(response.headers, durationMs, finished);
       return {
         state: "available",
         data,
         observedAt: Date.now(),
-        durationMs: Date.now() - start,
+        durationMs,
+        ...(serverTimeAtObservation === undefined ? {} : { serverTimeAtObservation }),
         httpStatus,
       };
     } catch (error) {
       return {
         state: "unavailable",
         observedAt: Date.now(),
-        durationMs: Date.now() - start,
+        durationMs: performance.now() - start,
         httpStatus,
         code: controller.signal.aborted ? "STATUS_TIMEOUT_OR_CANCELLED" : code,
         message: controller.signal.aborted

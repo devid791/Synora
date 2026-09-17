@@ -7,6 +7,9 @@ import { gpuProbeState, gpuTelemetrySchema } from "../src/shared/gpu-telemetry";
 import { HardwareTelemetry } from "../src/renderer/HardwareTelemetry";
 import { AxiomStatus } from "../src/engine/axiom-status";
 import { createServer } from "node:http";
+import { sampleClockNow, type BackendProbe } from "../src/shared/backend-status";
+import { LiveGpuStatus } from "../src/renderer/LiveGpuStatus";
+import { emptyEngine } from "../src/renderer/engine-state";
 
 const at = 100_000;
 const GiB = 1024 ** 3;
@@ -117,4 +120,65 @@ test("Hardware request reuses provider bearer, performs only same-origin GETs an
     assert.equal(b.mode === "live" && b.gpu?.state, "unavailable");
     assert.ok(calls.every(c => /^GET \/ops\/(runtime|usage|kv|hardware)$/.test(c)));
   } finally { monitor.dispose(); server.closeAllConnections(); await new Promise<void>(r => server.close(() => r())); }
+});
+
+test("Windows office clock skew: HTTP sample clock fixes GPU summary and details without changing source timestamps", async () => {
+  let skew = 30_000, sampleAge = 0;
+  let sent!: Hardware;
+  const server = createServer((req, res) => {
+    const serverNow = Date.now() - skew;
+    res.setHeader("Date", new Date(serverNow).toUTCString());
+    res.setHeader("Cache-Control", "no-store");
+    if (req.url !== "/ops/hardware") { res.writeHead(404); res.end(); return; }
+    sent = fixture();
+    sent.sampledAt = serverNow - sampleAge;
+    sent.nodes[0].sampledAt = sent.sampledAt;
+    res.end(JSON.stringify(sent));
+  });
+  await new Promise<void>(r => server.listen(0, "127.0.0.1", r));
+  const endpoint = `http://127.0.0.1:${(server.address() as {port:number}).port}/codex/v1`;
+  const monitor = new AxiomStatus({cacheMs: 0});
+  try {
+    for (skew of [30_000, -30_000, 43_200_000, -43_200_000]) {
+      monitor.reset(); // Independent clients, not a server changing clocks mid-run.
+      sampleAge = 0;
+      const status = await monitor.read(endpoint);
+      assert.equal(status.mode, "live");
+      if (status.mode !== "live" || status.hardware?.state !== "available") throw Error("No hardware");
+      const p = status.hardware;
+      assert.deepEqual(p.data, sent, "Never rewrite original timestamps or measured values");
+      assert.equal(gpuProbeState(status.gpu, p.observedAt), "available");
+      assert.equal(gpuProbeState(status.gpu, p.observedAt + 8000), "stale");
+      for (const compact of [true, false]) {
+        const html = renderToStaticMarkup(createElement(LiveGpuStatus, {
+          backend: status, engine: emptyEngine, now: p.observedAt, error: "", compact,
+        }));
+        assert.match(html, /data-gpu-live=/, `skew=${skew}, compact=${compact}`);
+        assert.doesNotMatch(html, /Stale|sample stale/);
+        const expired = renderToStaticMarkup(createElement(LiveGpuStatus, {
+          backend: status, engine: emptyEngine, now: p.observedAt + 8000, error: "", compact,
+        }));
+        assert.doesNotMatch(expired, /data-gpu-live=/);
+      }
+      assert.equal(memorySummary(p.data, sampleClockNow(p, p.observedAt)).complete, true);
+      sampleAge = 20_000;
+      const stale = await monitor.read(endpoint);
+      assert.equal(stale.mode === "live" && gpuProbeState(stale.gpu, Date.now()), "stale");
+    }
+  } finally { monitor.dispose(); server.closeAllConnections(); await new Promise<void>(r => server.close(() => r())); }
+});
+
+test("Clock correction preserves per-node stale/future checks and a future root cannot hide in projection", () => {
+  const h = fixture();
+  const p: BackendProbe<Hardware> = {state: "available", data: h, observedAt: at + 30_000,
+    serverTimeAtObservation: at + 999, durationMs: 2, httpStatus: 200};
+  assert.equal(gpuProbeState(hardwareGpuProbe(p), p.observedAt), "available");
+  for (const nodeAt of [at - 20_000, at + 5000]) {
+    h.nodes[0].sampledAt = nodeAt;
+    assert.equal(gpuProbeState(hardwareGpuProbe(p), p.observedAt), "stale");
+    assert.equal(memorySummary(h, sampleClockNow(p, p.observedAt)).complete, false);
+  }
+  h.nodes[0].sampledAt = at;
+  h.sampledAt = at + 5000;
+  assert.equal(gpuProbeState(hardwareGpuProbe(p), p.observedAt), "stale");
 });

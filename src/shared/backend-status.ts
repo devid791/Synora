@@ -62,12 +62,21 @@ export const resourceStatusSchema = z.object({
 });
 export type BackendProbe<T> = {
   observedAt: number;
+  /** Server-clock age anchor, not a replacement for the original sampledAt. */
+  serverTimeAtObservation?: number;
   durationMs: number;
   httpStatus: number | null;
 } & (
   | { state: "available"; data: T }
   | { state: "unavailable"; code: string; message: string }
 );
+/** Advance remote samples in their own clock domain. Missing HTTP timing keeps
+ * legacy strict checks; a local clock rollback invalidates the observation. */
+export function sampleClockNow(probe: Pick<BackendProbe<unknown>, "observedAt" | "serverTimeAtObservation">, now: number): number {
+  if (probe.serverTimeAtObservation === undefined) return now;
+  if (now < probe.observedAt - 1000) return NaN;
+  return probe.serverTimeAtObservation + Math.max(0, now - probe.observedAt);
+}
 export const kvStatusSchema = z.object({
   schema: z.literal("axiom_kv_status_v1"),
   status: z.literal("pass"),
