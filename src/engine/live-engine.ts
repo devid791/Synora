@@ -264,8 +264,14 @@ export class LiveEngine {
       await this.restore(this.state.conversationId);
       return;
     }
+    const context = await persistent.context();
+    // Resolving the idle context may await credentials/catalog I/O. A user can
+    // start a turn in that interval. The stale idle settings must not close and
+    // replace the transport now owned by that foreground operation.
+    if (this.disposed || this.starting || this.cancellation ||
+        ["running", "waiting"].includes(this.state.status)) return;
     this.cancelled = false;
-    await this.connect(await persistent.context());
+    await this.connect(context);
   }
   snapshot(): EngineSnapshot {
     return structuredClone(this.state);

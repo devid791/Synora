@@ -26,6 +26,7 @@ function setup(
     scenario?: string;
     allowed?: () => boolean;
     beforePrepare?: () => Promise<void>;
+    backgroundContext?: (context: LiveContext) => Promise<LiveContext>;
   } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), "synora-persistent-"));
@@ -69,7 +70,7 @@ function setup(
       },
       sink: () => snapshots.push(engine.snapshot()),
       persistent: {
-        context: async () => context(),
+        context: async () => opts.backgroundContext ? opts.backgroundContext(context()) : context(),
         allowed: opts.allowed ?? (() => true),
         heartbeatMs: 25,
         retryMs: 15,
@@ -106,6 +107,28 @@ function setup(
     },
   };
 }
+
+test("Delayed idle context must not replace the foreground turn transport", async () => {
+  let release!: () => void, requested = false;
+  const gate = new Promise<void>(r => { release = r; });
+  const t = setup({ scenario: "persistent-wait", backgroundContext: async c => {
+    requested = true;
+    await gate;
+    return { ...c, profile: "minimal" };
+  }});
+  try {
+    await until(() => requested);
+    await t.engine.start("owned", "foreground owns this connection", "text");
+    const before = t.engine.snapshot();
+    assert.equal(before.status, "running");
+    release();
+    await pause(100);
+    assert.equal(t.prepares(), 1, "stale idle context must not reprepare Core");
+    assert.equal(t.engine.snapshot().appServer?.pid, before.appServer?.pid);
+    assert.equal(t.engine.snapshot().status, "running");
+    assert.equal(t.calls().filter(c => c.method === "turn/start").length, 1);
+  } finally { release(); await t.close(); }
+});
 
 test("Parent warms before first message and remains ready; idle heartbeat creates no thread or inference", async () => {
   const t = setup();
