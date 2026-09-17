@@ -1,0 +1,10 @@
+# Pinned sources and generated provenance must have identical bytes on native
+# workers. In particular, Git for Windows must not rewrite the approved SVG.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.icns binary
+*.zip binary
+*.gz binary
+*.exe binary
