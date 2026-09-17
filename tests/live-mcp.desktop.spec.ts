@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "@playwright/test";
-import { mkdtemp, mkdir, writeFile, readFile, readdir, realpath } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, realpath } from "node:fs/promises";
 import { join, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
@@ -254,12 +254,16 @@ test("Packaged native web tools: actual model search/fetch, bundled executor, co
     );
     const helperName =
       process.platform === "win32" ? "synora-web-mcp.exe" : "synora-web-mcp";
-    const helpers = (await readdir(state, { recursive: true })).filter((p) =>
-      p.endsWith(helperName),
-    );
-    expect(helpers).toHaveLength(1);
+    expect(manifest.sha256).toMatch(/^[a-f0-9]{64}$/);
+    if (prepared) {
+      const binding = JSON.parse(await readFile(join(state, "app-server", ".windows-home.json"), "utf8"));
+      expect(binding.relative).toBe("app-server/native-axiom");
+    }
+    // Verify the current runtime's content-addressed executor, not retained
+    // rollback generations (which must remain intact after a Core update).
+    const helperPath = join(state, "app-server", "native-axiom", "native-web", manifest.sha256, helperName);
     const helperHash = createHash("sha256")
-      .update(await readFile(join(state, helpers[0])))
+      .update(await readFile(helperPath))
       .digest("hex");
     expect(helperHash).toBe(manifest.sha256);
     await nav("Connectors");
