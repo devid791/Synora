@@ -7,17 +7,18 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-// Publish the exact tested telemetry-fix packages, without rebuilding or changing them.
+// Publish the exact tested aligned packages, without rebuilding or changing them.
 // Qualification scope and local signing/OS grant limitations remain explicit.
 const repository = 'devid791/Synora';
-const tag = 'v0.2.2';
-const origin = 'https://synora-ai.org/downloads/';
+const tag = 'v0.2.3';
+const origin = 'https://synora-ai.org/downloads/0.2.3/';
 const assets = [
-  { name: 'Synora-0.2.2-macos-arm64.zip', size: 364033827, sha256: 'd2bbf57a60bc90a07b677d03de0768e841c19c21bcb5d228e477ea075cbcee22', type: 'application/zip' },
-  { name: 'Synora-0.2.2-windows-x64.exe', size: 395353898, sha256: '46d1874e39482b14cae57973d67f1d1b0216bca421232be426455d8f96572094', type: 'application/octet-stream' },
-  { name: 'Synora-0.2.2-linux-amd64.deb', size: 357584772, sha256: '4dd3109993ca3a7290d59b5683b2f874d09af2caecf4f49f6ffa097ed2020835', type: 'application/octet-stream' },
-  { name: 'SHA256SUMS.txt', source: 'SHA256SUMS-0.2.2.txt', size: 285, sha256: 'e49f056fd941c1b93d296c513fb5a851a5d2ec72f22d13159981a60cf0b8d9ef', type: 'text/plain' },
-  { name: 'RELEASE-NOTES.txt', source: 'RELEASE-NOTES-0.2.2.txt', size: 2786, sha256: '86d7ae4fa2e47bced2485c51104cd1bbef111da1910d6fab260650f4865ae5c5', type: 'text/plain' },
+  { name: 'Synora-0.2.3-macos-arm64.zip', size: 364037900, sha256: 'c023ceee1a1d2675ab5211aa536a42d983f63cce22a78a9146e00e06e443992c', type: 'application/zip' },
+  { name: 'Synora-0.2.3-windows-x64.exe', size: 395356727, sha256: '00e1f86eee788ff8799f0f4c5a476b3314ff9350ec812588086586397ee8cda5', type: 'application/octet-stream' },
+  { name: 'Synora-0.2.3-linux-amd64.deb', size: 357588448, sha256: 'c217bc1cfb159f8d2aaaa1e1311a806e50f65b4491fd6ec77ae6bdd0ddef748e', type: 'application/octet-stream' },
+  { name: 'Synora-0.2.3-web-linux-x64.tar.gz', size: 385739076, sha256: '8e044a1078bb6ec71227a8a9079d51b9f1cc7f2fb336245a616a1589e80359f1', type: 'application/gzip' },
+  { name: 'SHA256SUMS.txt', size: 385, sha256: '2cc28c65cc9f2cc043663c35e2fb4379ddd8df32ce6759d04bfa6f2e9b1e63e8', type: 'text/plain' },
+  { name: 'RELEASE-NOTES.txt', size: 3916, sha256: '4563f1525f5b11bfd67409b1569537d23bcfeef938ba317b973b57bf7778b988', type: 'text/plain' },
 ];
 
 async function verifyFile(directory, asset) {
@@ -44,7 +45,7 @@ async function download(directory, asset) {
 }
 
 function validateAssets(uploaded) {
-  assert.equal(uploaded.length, assets.length, 'Release must contain exactly the five expected assets');
+  assert.equal(uploaded.length, assets.length, 'Release must contain exactly the six expected assets');
   for (const expected of assets) {
     const asset = uploaded.find(item => item.name === expected.name);
     assert.ok(asset, `${expected.name}: missing release asset`);
@@ -61,7 +62,7 @@ async function main() {
     return;
   }
   assert.equal(process.env.GITHUB_REPOSITORY, repository);
-  assert.ok([`refs/tags/${tag}`, 'refs/heads/codex/release-v0.2.2'].includes(process.env.GITHUB_REF));
+  assert.ok([`refs/tags/${tag}`, 'refs/heads/codex/release-v0.2.3'].includes(process.env.GITHUB_REF));
   assert.ok(process.env.GH_TOKEN, 'GitHub Actions token required');
   const authorization = `Bearer ${process.env.GH_TOKEN}`;
   async function api(path, options = {}) {
@@ -92,9 +93,9 @@ async function main() {
   // Validate every byte before creating or modifying a release.
   for (const asset of assets) await download(directory, asset);
   const notes = await readFile(join(directory, 'RELEASE-NOTES.txt'), 'utf8');
-  const body = `## Synora 0.2.2 — telemetry clock-skew fix preview\n\nFixes false stale GPU and memory readouts when the client and Axiom server clocks differ. The live browser remains beside your conversation. Exact tested **ea827b7** application packages, with Codex App Server **0.154.0**. This remains a preview with the qualification scope below.\n\n- **macOS Apple silicon:** download the ARM64 ZIP (macOS 13+). Locally signed, not Apple-notarized; local Keychain approval may be required after updating. No Apple account is needed for local operation.\n- **Windows x64:** download the EXE installer (unsigned).\n- **Linux AMD64:** download the DEB package.\n\nUse the installer assets below, not GitHub's automatically generated source archives. Compare file hashes with **SHA256SUMS.txt**.\n\n[Searchable manual](https://synora-ai.org/manual/) · [Website downloads](https://synora-ai.org/#downloads) · [Report a bug](https://github.com/devid791/Synora/issues)\n\n### Release notes and limitations\n\n\`\`\`text\n${notes.trim()}\n\`\`\`\n`;
+  const body = `## Synora 0.2.3 — aligned desktop and web preview\n\nAdds the local web distribution, signed Core updates, and reliable foreground/background connection ownership. The live browser remains beside your conversation. Exact tested **a054117** application packages, with Codex App Server **0.154.0**. This remains a preview with the qualification scope below.\n\n- **macOS Apple silicon:** download the ARM64 ZIP (macOS 13+). Locally signed, not Apple-notarized; local Keychain approval may be required after updating. No Apple account is needed for local operation.\n- **Windows x64:** download the EXE installer (unsigned).\n- **Linux AMD64:** download the DEB package.\n\nUse the installer assets below, not GitHub's automatically generated source archives. Compare file hashes with **SHA256SUMS.txt**.\n\n[Searchable manual](https://synora-ai.org/manual/) · [Website downloads](https://synora-ai.org/#downloads) · [Report a bug](https://github.com/devid791/Synora/issues)\n\n### Release notes and limitations\n\n\`\`\`text\n${notes.trim()}\n\`\`\`\n`;
   if (!release) release = await api('releases', { method: 'POST', body: JSON.stringify({
-    tag_name: tag, name: 'Synora 0.2.2 — telemetry clock-skew fix preview', body,
+    tag_name: tag, name: 'Synora 0.2.3 — aligned desktop and web preview', body,
     draft: true, prerelease: true, make_latest: 'false',
   }) });
   else await api(`releases/${release.id}`, { method: 'PATCH', body: JSON.stringify({ body, prerelease: true }) });

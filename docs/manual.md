@@ -2,11 +2,7 @@
 
 Your guide to installing Synora, connecting a model and doing real work with files, tools and agents.
 
-This manual covers the 67eed3d desktop source baseline and its aligned Linux, Windows and local web builds. Menu labels below use English. Platform support, provider access and available tools depend on your installation. Read the known limitations before relying on Synora for important work.
-
-The repository also contains newer `0.2.0` source-candidate features described
-below where explicitly marked. They are not yet an update to the published
-foundation download packages.
+This manual covers Synora 0.2.3 (application build dc9ae89), including the Mac, Windows and Linux desktop packages and the local web package for Linux x64. Menu labels below use English. Platform support, provider access and available tools depend on your installation. Read the known limitations before relying on Synora for important work.
 
 ## Start here
 
@@ -166,38 +162,39 @@ The terminal is a real shell on the workspace host. Commands can modify files, c
 
 In the local web companion, the browser UI is a client of the local service. Files and terminal commands belong to the service host, not to arbitrary files on the browser's computer.
 
-## Browser and computer control (source candidate)
+## Browser and computer control
 
-The `0.2.0` source candidate embeds the actual live browser page beside the desktop
-conversation: you see typing, searches, navigation and scrolling and can interact
-with the same page. Screenshots are model observations, not the desktop display.
-The local web edition uses an interactive frame preview instead. Synora can also
+The desktop app embeds the actual live browser page beside your conversation:
+you see typing, searches, navigation and scrolling, and can interact with the
+same page. Screenshots are model observations, not the desktop display. The
+local web edition uses an interactive frame preview instead. Synora can also
 operate permitted application windows on the host running Synora. This is not
 control of the inference server or an arbitrary visitor's computer in web mode.
-Open **Computer & browser** to inspect availability and enable the intended
+
+Open Computer & browser to inspect availability and enable the intended
 capabilities. Ask/Approve modes require scoped site/window and action consent.
 Full access enables available controls without extra Synora approvals unless
 you explicitly stopped or disabled them. OS permissions and protected-window
 restrictions still apply; Synora cannot approve its own or the OS's dialogs.
 
 For readable pages, the model can request text observations with actual controls
-and coordinates. Native `computer_snapshot` also accepts `format=text` for real
-accessibility labels, values and focus; `format=image` is used for graphics or
+and coordinates. Native computer_snapshot also accepts format=text for real
+accessibility labels, values and focus; format=image is used for graphics or
 unreadable controls. The native default still includes an image. Both keep a
 real local preview and the same fresh, one-use observation requirement. Missing
 accessibility is reported, not invented. Take a new observation after each
 action, navigation, layout or policy change.
 
-Use **Stop control** or the available **Ctrl/Cmd+Shift+F12** emergency shortcut
+Use Stop control or the available Ctrl/Cmd+Shift+F12 emergency shortcut
 to revoke control. Closing the preview panel alone does not stop it. Changing
 permission mode keeps the conversation but invalidates prior read approvals and
 observations. Already delivered clicks or text cannot be undone by stopping.
 
 Desktop prerequisites differ: macOS needs Screen Recording and Accessibility;
 Windows needs an interactive desktop and respects UAC boundaries; Linux native
-control currently requires X11, a window manager, `xdotool` and `xprop`. The
-internal browser remains a separate capability. See [Browser and computer
-control](COMPUTER-USE.md) for exact supported actions and limitations.
+control currently requires X11, a window manager, xdotool and xprop. The
+internal browser remains a separate capability. Detailed supported actions and
+limitations: https://github.com/devid791/Synora/blob/main/docs/COMPUTER-USE.md
 
 ## Inspect reasoning and tool activity
 
@@ -267,7 +264,7 @@ Settings includes appearance and language choices, defaults for new work and sup
 
 Launch at login depends on the operating system's startup permissions. Check the OS setting if the app does not open after login. Being installed does not mean it can run while the computer is powered off or asleep.
 
-The App Server update controls distinguish the installed version, an upstream available version and a qualified update. An available version is not necessarily a qualified version. Apply an offered qualified update only when the app is idle and follow the displayed result. Do not replace Core binaries manually inside an installed app.
+The App Server update controls distinguish the installed version, an upstream available version and a qualified update. Synora 0.2.3 checks a signed update channel after startup and periodically while open. A new Core must pass native qualification on all three desktop platforms before the channel can authorize it. Updates apply while idle, verify the exact payload and retain recovery state. A failed or unavailable qualification does not authorize an update. Do not replace Core binaries manually inside an installed app.
 
 App updates, App Server updates and an Axiom server update are separate. Keep important work saved before changing any component. Installing an update should not be used as an excuse to delete conversations or reset credentials.
 
@@ -275,7 +272,11 @@ App updates, App Server updates and an Axiom server update are separate. Keep im
 
 The local web build uses the shared Synora interface with a local service that owns workspaces, terminal processes and engine sessions. It is different from the public synora-ai.org presentation and download site.
 
-Use the repository's instructions to build and start it on your own machine. The supported local configuration binds to loopback and validates browser origin and session requests. Do not bind it to all network interfaces or publish it on the internet just to make remote access easier.
+The downloadable 0.2.3 web package is for Linux x64. Install Node.js 22.19 or newer, extract the archive, then run node start.mjs in its directory. Open the exact local address printed in the terminal, normally http://127.0.0.1:4319. Core, the native web executor and an isolated Chromium browser are included; Linux still needs Chromium's shared libraries. No source checkout or npm install is needed to launch the package.
+
+Keep the terminal running while using the app. Ctrl+C stops it. Files and tools run on the service computer. The web profile is stored in ~/.local/share/synora-web/ by default, separately from desktop profiles. To upgrade, stop the service, replace only the program folder and restart; do not remove the profile directory. SYNORA_WEB_DATA_DIR selects another private profile directory, and SYNORA_WEB_PORT selects another local port.
+
+The supported local configuration binds to loopback and validates browser origin and session requests. Do not bind it to all network interfaces or publish it on the internet just to make remote access easier. Native desktop OS permissions are not inherited by a web page.
 
 A remotely hosted service would execute work on its host and needs a separately designed authentication and network boundary. The public website deliberately exposes no chat backend, file API, terminal API or upload endpoint.
 
