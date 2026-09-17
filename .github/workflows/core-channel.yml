@@ -12,35 +12,51 @@ jobs:
   discover:
     if: github.repository == 'devid791/Synora' && github.ref == 'refs/heads/main' && vars.CORE_CHANNEL_ENABLED == 'true'
     runs-on: ubuntu-24.04
-    permissions:
-      actions: read
     timeout-minutes: 5
     outputs:
       version: ${{ steps.latest.outputs.version }}
     steps:
       - id: latest
-        name: Verify native workers are online and discover the stable release
-        env:
-          GH_TOKEN: ${{ github.token }}
+        name: Discover the stable official release
         shell: bash
         run: |
           node --input-type=module <<'JS'
           import { appendFileSync } from 'node:fs';
-          const workers = await fetch('https://api.github.com/repos/devid791/Synora/actions/runners?per_page=100', {
-            headers: {Authorization: 'Bearer ' + process.env.GH_TOKEN},
-            signal: AbortSignal.timeout(15000), redirect: 'error'
-          });
-          if (!workers.ok) throw Error('Runner readiness HTTP ' + workers.status);
-          const data = await workers.json();
-          for (const label of ['synora-qa-linux-x64', 'synora-qa-macos-arm64', 'synora-qa-windows-x64']) {
-            if (!data.runners.some(r => r.status === 'online' && r.labels.some(l => l.name === label)))
-              throw Error(label + ' is offline; no update is authorized. Next scheduled run will retry.');
-          }
           const r = await fetch('https://api.github.com/repos/openai/codex/releases/latest', {redirect:'error',signal:AbortSignal.timeout(15000)});
           if (!r.ok) throw Error('Release discovery HTTP ' + r.status);
           const v = await r.json();
           if(v.draft || v.prerelease || !/^rust-v\d+\.\d+\.\d+$/.test(v.tag_name)) throw Error('Not a stable release');
           appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + v.tag_name.slice(6) + '\n');
+          JS
+  queue-guard:
+    needs: discover
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    timeout-minutes: 300
+    steps:
+      - name: Bound offline-worker waiting without repository admin credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'JS'
+          import {setTimeout as wait} from 'node:timers/promises';
+          const root = 'https://api.github.com/repos/devid791/Synora/actions/runs/' + process.env.GITHUB_RUN_ID;
+          const headers = {Authorization: 'Bearer ' + process.env.GH_TOKEN};
+          let idleSince = Date.now();
+          for (;;) {
+            const r = await fetch(root + '/jobs?per_page=100', {headers, signal:AbortSignal.timeout(15000)});
+            if (!r.ok) throw Error('Job readiness HTTP ' + r.status);
+            const jobs = (await r.json()).jobs.filter(j => j.name.startsWith('qualify ('));
+            if (jobs.length === 3 && jobs.every(j => j.status === 'completed')) break;
+            if (jobs.some(j => j.status === 'in_progress')) idleSince = Date.now();
+            if (Date.now() - idleSince > 10 * 60 * 1000) {
+              const cancelled = await fetch(root + '/cancel', {method:'POST',headers,signal:AbortSignal.timeout(15000)});
+              if (!cancelled.ok) throw Error('Could not cancel offline-worker run: ' + cancelled.status);
+              throw Error('Native worker unavailable for ten minutes; no update authorized. Next scheduled run retries.');
+            }
+            await wait(30000);
+          }
           JS
   qualify:
     needs: discover

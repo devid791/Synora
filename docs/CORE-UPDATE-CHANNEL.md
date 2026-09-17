@@ -15,8 +15,10 @@ and initialize probes do not substitute for that first end-to-end run.
 
 ## Release path
 
-1. Every six hours the workflow first checks all native workers are online, then
-   discovers the newest **stable** `openai/codex` release.
+1. Every six hours the workflow discovers the newest **stable** `openai/codex`
+   release. A queue guard cancels a run if no native worker picks up pending
+   work for ten minutes. It needs only the run's Actions token, not a permanent
+   repository administration credential.
    No commands, executable URLs or trust keys are read from release notes.
 2. Dedicated Linux x64, macOS arm64 and Windows x64 workers create disposable
    source worktrees, verify the official archive digest, inventory all regular
