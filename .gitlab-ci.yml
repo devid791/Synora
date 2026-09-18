@@ -1,0 +1,65 @@
+# One independent pipeline per platform. No all-platform barrier or matrix.
+workflow:
+  rules:
+    - if: '$CI_SERVER_HOST != "gitlab.synapsecorp.org" || $CI_PROJECT_PATH != "davide/synora" || $CI_COMMIT_REF_PROTECTED != "true"'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE != "schedule" && $CI_PIPELINE_SOURCE != "web" && $CI_PIPELINE_SOURCE != "api"'
+      when: never
+    - if: '$CORE_PLATFORM == "linux"'
+      variables:
+        CORE_RUNNER: synora-gitlab-linux-x64
+        CORE_TARGET: x86_64-unknown-linux-musl
+    - if: '$CORE_PLATFORM == "mac"'
+      variables:
+        CORE_RUNNER: synora-gitlab-macos-arm64
+        CORE_TARGET: aarch64-apple-darwin
+    - if: '$CORE_PLATFORM == "win"'
+      variables:
+        CORE_RUNNER: synora-gitlab-windows-x64
+        CORE_TARGET: x86_64-pc-windows-msvc
+    - when: never
+
+stages: [discover, qualify, publish]
+default:
+  interruptible: false
+variables:
+  GIT_DEPTH: "1"
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+discover:
+  stage: discover
+  tags: [synora-gitlab-publisher]
+  timeout: 5m
+  script:
+    - node scripts/gitlab-core-discover.mjs
+  artifacts:
+    reports:
+      dotenv: core-candidate.env
+    expire_in: 1 day
+
+qualify:
+  stage: qualify
+  needs: [discover]
+  tags: ['$CORE_RUNNER']
+  resource_group: core-qa-$CORE_PLATFORM
+  timeout: 90m
+  script:
+    - node scripts/gitlab-core-qa.mjs
+  artifacts:
+    when: always
+    access: maintainer
+    paths: [out/gitlab-core/]
+    expire_in: 14 days
+
+publish:
+  stage: publish
+  needs: [discover, qualify]
+  tags: [synora-gitlab-publisher]
+  # Lock ONLY this short merge/sign/write operation, not native qualification.
+  resource_group: core-channel-publish
+  environment:
+    name: core-channel-publisher
+  timeout: 10m
+  script:
+    - npm ci --ignore-scripts
+    - node --import tsx scripts/publish-core-channel.ts out/gitlab-core/out/core-channel-qualification/qualification.json

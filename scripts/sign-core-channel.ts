@@ -6,10 +6,11 @@ import assert from "node:assert/strict";
 import { coreQualificationSchema, qualifiedFromReport } from "../src/engine/core-qualification";
 import { CORE_CHANNEL_ADAPTER, CORE_CHANNEL_KEY_ID, CORE_CHANNEL_PUBLIC_KEY,
   channelPayloadSchema, verifyCoreChannel, coreEvidenceHash } from "../src/engine/core-channel";
+import { mergeQualifiedReleases } from "./core-channel-merge";
 
 const [output, previousPath, ...reports] = process.argv.slice(2);
-assert.ok(output && previousPath && reports.length === 3,
-  "Usage: tsx scripts/sign-core-channel.ts OUTPUT PREVIOUS_OR_NONE MAC_REPORT WINDOWS_REPORT LINUX_REPORT");
+assert.ok(output && previousPath && reports.length >= 1 && reports.length <= 3,
+  "Usage: tsx scripts/sign-core-channel.ts OUTPUT PREVIOUS_OR_NONE QUALIFIED_REPORT [QUALIFIED_REPORT ...]");
 const keyPath = process.env.SYNORA_CHANNEL_SIGNING_KEY_FILE;
 assert.ok(keyPath, "Signing requires a protected private key file, never a source-controlled key");
 const key = await readFile(keyPath);
@@ -20,6 +21,9 @@ const previous = previousPath === "none" ? undefined :
 const entries = [];
 for (const path of reports) {
   const bytes = await readFile(path), report = coreQualificationSchema.parse(JSON.parse(bytes.toString()));
+  if (process.env.CI_COMMIT_SHA) assert.equal(report.sourceCommit, process.env.CI_COMMIT_SHA, "Report must belong to this pipeline source");
+  if (process.env.CORE_VERSION) assert.equal(report.package.version, process.env.CORE_VERSION, "Report must qualify the discovered candidate");
+  if (process.env.CORE_TARGET) assert.equal(report.package.target, process.env.CORE_TARGET, "Report must qualify the selected platform");
   for (const gate of report.gates) {
     const evidence = await readFile(join(dirname(resolve(path)), gate.artifact));
     assert.equal(coreEvidenceHash(evidence), gate.sha256, `Changed evidence: ${gate.gate}`);
@@ -29,14 +33,14 @@ for (const path of reports) {
   if (old) assert.deepEqual(release.package, old.package, "Published versions are immutable");
   entries.push(old ?? release);
 }
-assert.equal(new Set(entries.map(r => r.package.target)).size, 3, "All three native platforms must pass");
+assert.equal(new Set(entries.map(r => r.package.target)).size, reports.length, "Duplicate platform report");
 assert.equal(new Set(entries.map(r => r.package.version)).size, 1, "Platform versions must match");
 // Use the new reports' source commit, not retained older receipt commits.
 const sourceCommits = await Promise.all(reports.map(async p => coreQualificationSchema.parse(JSON.parse(await readFile(p, "utf8"))).sourceCommit));
 assert.equal(new Set(sourceCommits).size, 1, "Platforms must test the same adapter source");
 const payload = channelPayloadSchema.parse({ schema: "synora.core-channel.v1", adapter: CORE_CHANNEL_ADAPTER,
   sequence: Math.max(now, (previous?.sequence ?? 0) + 1), issuedAt: now, expiresAt: now + 7 * 86400000,
-  releases: entries });
+  releases: mergeQualifiedReleases(previous, entries) });
 const bytes = Buffer.from(JSON.stringify(payload));
 const envelope = { keyId: CORE_CHANNEL_KEY_ID, payload: bytes.toString("base64"), signature: sign(null, bytes, key).toString("base64") };
 verifyCoreChannel(envelope);

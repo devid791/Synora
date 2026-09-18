@@ -1,4 +1,8 @@
-# Automatic Core update channel
+# Automatic Core update channel — historical initial rollout
+
+**Superseded operational procedure:** see [GitLab Core qualification](GITLAB-CORE-QUALIFICATION.md).
+The GitHub scheduler and all-platform signing barrier described below have been
+retired. This document retains the initial rollout history, not current setup instructions.
 
 ## Implementation and rollout status
 

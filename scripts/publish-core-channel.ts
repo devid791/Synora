@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 import { verifyCoreChannel, coreEvidenceHash } from "../src/engine/core-channel";
 
 const run = promisify(execFile);
+const reports = process.argv.slice(2);
+assert.ok(reports.length >= 1 && reports.length <= 3, "Explicit qualified report paths are required");
 const host = process.env.SYNORA_CHANNEL_DEPLOY_HOST ?? "", user = process.env.SYNORA_CHANNEL_DEPLOY_USER ?? "";
 assert.match(host, /^[a-zA-Z0-9][a-zA-Z0-9.-]*$/); assert.match(user, /^[a-z_][a-z0-9_-]*$/);
 for (const name of ["SYNORA_CHANNEL_SIGNING_KEY", "SYNORA_CHANNEL_DEPLOY_KEY", "SYNORA_CHANNEL_KNOWN_HOSTS"])
@@ -27,7 +29,7 @@ try {
   verifyCoreChannel(JSON.parse(await readFile(previous, "utf8")));
   const output = join(temporary, "next.json");
   await run(process.execPath, ["--import", "tsx", "scripts/sign-core-channel.ts", output, previous,
-    ...["mac", "win", "linux"].map(p => resolve(`out/core-channel-reports/core-${p}/qualification.json`))], {
+    ...reports.map(p => resolve(p))], {
     env: { ...process.env, SYNORA_CHANNEL_SIGNING_KEY_FILE: signer }, timeout: 60000, maxBuffer: 65536,
   });
   const bytes = await readFile(output); verifyCoreChannel(JSON.parse(bytes.toString()));

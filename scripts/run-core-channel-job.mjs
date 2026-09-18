@@ -30,7 +30,7 @@ if (mode === 'prepare') {
     process.platform === 'win32' ? 'win-unpacked/Synora Harness Desktop.exe' : 'linux-unpacked/synora-harness-desktop';
   const executable = resolve('out/core-channel-app', file);
   assert.ok(existsSync(executable), 'Packaged executable missing');
-  appendFileSync(process.env.GITHUB_ENV, `SYNORA_TEST_EXECUTABLE=${executable}\n`);
+  if (process.env.GITHUB_ENV) appendFileSync(process.env.GITHUB_ENV, `SYNORA_TEST_EXECUTABLE=${executable}\n`);
 } else if (mode === 'qualify') {
   const args = ['--import', 'tsx', 'scripts/qualify-core-channel.ts'];
   if (process.platform === 'linux') run('xvfb-run', ['-a', '-s', '-screen 0 1600x1100x24 -extension GLX', process.execPath, ...args]);
