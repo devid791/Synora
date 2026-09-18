@@ -123,8 +123,11 @@ def handle(root, command, source, destination):
     destination.write(b'PUBLISHED\n')
 
 def file_hash(path):
+    checksum = hashlib.sha256()
     with path.open('rb') as f:
-        return hashlib.file_digest(f, 'sha256').hexdigest()
+        for chunk in iter(lambda: f.read(1024 * 1024), b''):
+            checksum.update(chunk)
+    return checksum.hexdigest()
 
 if __name__ == '__main__':
     try:
