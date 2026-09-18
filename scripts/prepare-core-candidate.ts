@@ -1,6 +1,6 @@
 // Only disposable native CI worktrees. Never modifies an installed application.
-import { createHash } from "node:crypto";
-import { mkdir, open, readFile, writeFile, lstat } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, open, readFile, writeFile, lstat, copyFile, rename, rm } from "node:fs/promises";
 import { resolve, relative, join, isAbsolute } from "node:path";
 import { list } from "tar";
 import assert from "node:assert/strict";
@@ -47,6 +47,19 @@ assert.match(asset.digest, /^sha256:[a-f0-9]{64}$/);
 assert.ok(Number.isSafeInteger(asset.size) && asset.size > 0 && asset.size < 1024 ** 3);
 const directory = resolve("out/core-packages", version); await mkdir(directory, { recursive: true });
 const archive = join(directory, previous.file);
+const cacheFile = process.env.SYNORA_CORE_PACKAGE_CACHE
+  ? join(resolve(process.env.SYNORA_CORE_PACKAGE_CACHE), version, previous.file) : undefined;
+if (cacheFile) {
+  try {
+    const info = await lstat(cacheFile);
+    assert.ok(info.isFile() && !info.isSymbolicLink());
+    assert.equal(info.size, asset.size);
+    assert.equal(`sha256:${await sha256File(cacheFile)}`, asset.digest);
+    await copyFile(cacheFile, archive, 1); // COPYFILE_EXCL, never overwrite
+  } catch(error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
 let size = 0, cached = false;
 try {
   const info = await lstat(archive);
@@ -71,6 +84,12 @@ try {
   }
 } finally { await downloadReader.cancel(); await output.close(); }
 assert.equal(size, asset.size); assert.equal(`sha256:${digest.digest("hex")}`, asset.digest);
+}
+if (cacheFile && !cached) {
+  await mkdir(resolve(process.env.SYNORA_CORE_PACKAGE_CACHE!, version), {recursive:true,mode:0o700});
+  const staged = `${cacheFile}.${randomUUID()}.tmp`;
+  try { await copyFile(archive, staged, 1); await rename(staged, cacheFile); }
+  finally { await rm(staged,{force:true}); }
 }
 const files: CorePackage["files"] = Object.create(null), seen = new Set<string>();
 let expanded = 0; const failures: string[] = [];

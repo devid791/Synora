@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {execFileSync, spawnSync} from 'node:child_process';
 import {mkdtempSync, mkdirSync, cpSync, existsSync, rmSync, realpathSync} from 'node:fs';
-import {tmpdir} from 'node:os';
+import {tmpdir, homedir} from 'node:os';
 import {join, resolve} from 'node:path';
 assert.equal(process.env.CI_SERVER_HOST,'gitlab.synapsecorp.org');
 assert.equal(process.env.CI_PROJECT_PATH,'davide/synora');
@@ -12,7 +12,8 @@ const platform = {linux:'linux-x64',mac:'darwin-arm64',win:'win32-x64'}[process.
 assert.ok(platform);
 const temporary=mkdtempSync(join(realpathSync.native(tmpdir()),'synora-central-'));
 const checkout=join(temporary,'source'), artifacts=resolve('out/gitlab-core');
-const env={...process.env,RUNNER_TEMP:temporary,SYNORA_CORE_QUALIFICATION_WORKTREE:'1'};
+const env={...process.env,RUNNER_TEMP:temporary,SYNORA_CORE_QUALIFICATION_WORKTREE:'1',
+  SYNORA_CORE_PACKAGE_CACHE:join(homedir(),'.cache','synora-core-packages')};
 delete env.GITHUB_ENV;
 let added=false;
 function run(command,args) {

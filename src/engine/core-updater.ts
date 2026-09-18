@@ -221,7 +221,7 @@ export async function probeCore(
     transport.notify("initialized");
     // Native, isolated, no inference or account access. Check the actual APIs
     // used to load settings/history, not only the process version banner.
-    z.object({ config: z.record(z.unknown()), origins: z.record(z.unknown()), layers: z.array(z.unknown()).nullable() })
+    z.object({ config: z.record(z.unknown()), origins: z.record(z.unknown()), layers: z.array(z.unknown()).nullish() })
       .parse(await transport.request("config/read", { includeLayers: false }));
     z.object({ data: z.array(z.unknown()), nextCursor: z.string().nullable() })
       .parse(await transport.request("thread/list", { limit: 1 }));

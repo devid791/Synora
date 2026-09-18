@@ -23,7 +23,7 @@ test("Compatible endpoint adapter with original Core: full tools, actual command
       {
         provider: "synora_compatible",
         executable: f.wrapper,
-        runtime: { version: BUNDLED_CORE_VERSION, executable: async () => f.wrapper },
+        runtime: { version: process.platform === "win32" ? "0.153.4" : BUNDLED_CORE_VERSION, executable: async () => f.wrapper },
         stateDirectory: join(f.directory, "synora-compatible"),
         endpoint: f.endpoint,
         model: "fixture/compatible-model",
