@@ -75,6 +75,11 @@ and labels the difference; download counts are fetched separately per release.
 | `Synora-0.2.4-web-linux-x64.tar.gz` | `a693b49493e8d798542351afd1b61d5426908d67e0279cfad813fd279e868312` |
 
 GitHub asset digests/sizes and VPS file hashes match these original packages.
+All five public GitHub assets were subsequently downloaded in full without
+authentication: their complete byte counts and SHA-256 hashes matched. The final
+788-test regression and eight deployment tests passed again. The packaged Linux
+updater's settings, persisted preference, rejection of an unauthorized version
+and 150% zoom layout also passed its native UI test.
 Public site notes, manifests and counters match the local deployment; downloads
 remain read-only (POST returns 405). Core update signatures and freshness were
 verified using the application's pinned key. No GitHub qualification workflow
