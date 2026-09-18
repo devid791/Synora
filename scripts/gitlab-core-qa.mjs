@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {execFileSync, spawnSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, cpSync, existsSync, rmSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, cpSync, existsSync, rmSync, realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 
@@ -10,7 +10,10 @@ assert.equal(process.env.CI_COMMIT_REF_PROTECTED, 'true');
 assert.match(process.env.CI_JOB_ID ?? '', /^\d+$/);
 const expected = {linux: ['linux','x64'], mac: ['darwin','arm64'], win: ['win32','x64']}[process.env.CORE_PLATFORM];
 assert.deepEqual([process.platform, process.arch], expected, 'Wrong native worker');
-const root = process.cwd(), temporary = mkdtempSync(join(tmpdir(), 'synora-gitlab-core-'));
+// Windows service environments can expose an 8.3 TEMP path (AXIOM-~1).
+// Core reports its canonical home; use the real path before creating any homes
+// so the isolation assertion remains strict instead of accepting path aliases.
+const root = process.cwd(), temporary = mkdtempSync(join(realpathSync.native(tmpdir()), 'synora-gitlab-core-'));
 const checkout = join(temporary, 'source'), artifacts = resolve('out/gitlab-core');
 const env = {...process.env, RUNNER_TEMP: temporary, CORE_QA_WORKTREE: checkout, SYNORA_CORE_QUALIFICATION_WORKTREE: '1'};
 // No ambient Actions environment or installed production application is used.
