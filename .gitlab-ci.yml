@@ -1,4 +1,5 @@
-# One independent pipeline per platform. No all-platform barrier or matrix.
+# Core: central compatibility + mandatory local activation, no personal Macs.
+# Full native app QA is a separate, explicitly selected lane.
 workflow:
   rules:
     - if: '$CI_SERVER_HOST != "gitlab.synapsecorp.org" || $CI_PROJECT_PATH != "davide/synora" || $CI_COMMIT_REF_PROTECTED != "true"'
@@ -37,12 +38,32 @@ discover:
       dotenv: core-candidate.env
     expire_in: 1 day
 
-qualify:
+qualify-core:
+  stage: qualify
+  needs: [discover]
+  tags: [synora-gitlab-linux-x64]
+  resource_group: core-server-$CORE_PLATFORM
+  timeout: 30m
+  rules:
+    - if: '$CORE_FULL_APP_QA == "1"'
+      when: never
+    - when: on_success
+  script:
+    - node scripts/gitlab-core-central.mjs
+  artifacts:
+    when: always
+    access: maintainer
+    paths: [out/gitlab-core/]
+    expire_in: 14 days
+
+qualify-app-native:
   stage: qualify
   needs: [discover]
   tags: ['$CORE_RUNNER']
-  resource_group: core-qa-$CORE_PLATFORM
+  resource_group: app-native-$CORE_PLATFORM
   timeout: 90m
+  rules:
+    - if: '$CORE_FULL_APP_QA == "1"'
   script:
     - node scripts/gitlab-core-qa.mjs
   artifacts:
@@ -53,8 +74,14 @@ qualify:
 
 publish:
   stage: publish
-  needs: [discover, qualify]
+  needs:
+    - discover
+    - qualify-core
   tags: [synora-gitlab-publisher]
+  rules:
+    - if: '$CORE_FULL_APP_QA == "1"'
+      when: never
+    - when: on_success
   # Lock ONLY this short merge/sign/write operation, not native qualification.
   resource_group: core-channel-publish
   environment:
@@ -62,4 +89,4 @@ publish:
   timeout: 10m
   script:
     - npm ci --ignore-scripts
-    - node --import tsx scripts/publish-core-channel.ts out/gitlab-core/out/core-channel-qualification/qualification.json
+    - node --import tsx scripts/publish-core-channel.ts out/gitlab-core/out/core-central/qualification.json

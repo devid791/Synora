@@ -219,6 +219,12 @@ export async function probeCore(
     if (resolve(initialized.codexHome) !== resolve(home))
       throw Error("Core did not use its isolated update-probe home");
     transport.notify("initialized");
+    // Native, isolated, no inference or account access. Check the actual APIs
+    // used to load settings/history, not only the process version banner.
+    z.object({ config: z.record(z.unknown()), origins: z.record(z.unknown()), layers: z.array(z.unknown()).nullable() })
+      .parse(await transport.request("config/read", { includeLayers: false }));
+    z.object({ data: z.array(z.unknown()), nextCursor: z.string().nullable() })
+      .parse(await transport.request("thread/list", { limit: 1 }));
     return initialized;
   } finally {
     await transport.close();
@@ -457,14 +463,19 @@ export class CoreUpdater {
     return this.checkJob.then(() => this.snapshot());
   }
   private async checkLatest() {
-    await this.checkUpstream();
+    // The signed channel is authoritative. Ordinary startup must not wait for
+    // GitHub availability, rate limits, or an unrelated newer upstream release.
+    if (!this.channel) return this.checkUpstream();
     if (this.channel && !this.closed) {
       try {
         await this.channel.refresh(this.controller.signal);
         const eligible = this.snapshot().eligibleVersion;
-        if (eligible) this.message = `Core ${eligible} passed the signed update channel checks and will install when idle.`;
-        else if (this.state.latestVersion && compareCoreVersions(this.state.latestVersion, this.state.active.version) > 0)
-          this.message = `Core ${this.state.latestVersion} is available upstream; waiting for automated compatibility results in the signed channel.`;
+        const changed = eligible && eligible !== this.state.latestVersion;
+        await this.save({ ...this.state, latestVersion: eligible ?? this.state.active.version, checkedAt: Date.now() });
+        this.message = eligible
+          ? `Core ${eligible} is available from the signed channel. Synora will verify it locally and activate it when idle.`
+          : "No newer authorized Core update is available. Installed runtime unchanged.";
+        if (changed) this.options.notify?.(this.message);
       } catch (e) {
         if (!this.closed) this.message = `Signed Core channel unavailable; installed runtime unchanged. ${errorText(e)}`;
       }
@@ -685,7 +696,7 @@ export class CoreUpdater {
     const probeHome = await mkdtemp(join(directory, "probe-"));
     await (this.options.probe ?? probeCore)(executable, version, probeHome);
     this.checks.push(
-      "Exact executable version and initialize/initialized smoke completed; no inference",
+      "Native version, isolated initialize, settings and history API checks completed; no inference",
     );
     this.phase = "switching";
     this.controller.signal.throwIfAborted();

@@ -11,7 +11,7 @@ import { PROTOCOL_VERSION } from "../shared/contracts";
 // The transport is not a trust anchor: only this signing key can authorize
 // binaries. No renderer, provider, environment variable or release note can
 // supply a key, URL, executable or qualification policy.
-export const CORE_CHANNEL_URL = "https://synora-ai.org/updates/core/stable-v1.json";
+export const CORE_CHANNEL_URL = "https://synora-ai.org/updates/core/stable-v2.json";
 export const CORE_CHANNEL_KEY_ID = "synora-core-20260917";
 export const CORE_CHANNEL_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEADszVbqPXbBCgUKzP0J3NOiFrThNsWcXtTLkIshmj4Io=
@@ -26,6 +26,16 @@ const version = z.string().refine(v => {
 }, "Invalid stable Core version");
 const safeFile = z.string().regex(/^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*$/)
   .refine(v => !v.split("/").some(p => p === "." || p === ".."));
+export const CENTRAL_CORE_GATES = ["official-package", "linux-runtime-contract", "provider-contracts"] as const;
+export const CENTRAL_CORE_POLICY = "server-compatibility-local-activation-v1";
+export const centralQualificationSchema = z.object({
+  policy: z.literal(CENTRAL_CORE_POLICY),
+  testedTarget: z.literal("x86_64-unknown-linux-musl"),
+  localActivation: z.literal("required"),
+  sourceCommit: z.string().regex(/^[a-f0-9]{40}$/), evidenceSha256: hex,
+  checks: z.array(z.enum(CENTRAL_CORE_GATES)).length(CENTRAL_CORE_GATES.length)
+    .refine(v => new Set(v).size === CENTRAL_CORE_GATES.length),
+}).strict();
 export const channelReleaseSchema = z.object({
   package: z.object({
     version, target: z.enum(["aarch64-apple-darwin", "x86_64-pc-windows-msvc", "x86_64-unknown-linux-musl"]),
@@ -35,11 +45,11 @@ export const channelReleaseSchema = z.object({
       .refine(v => Object.keys(v).length > 0 && Object.keys(v).length <= 4096),
   }).strict(),
   protocol: z.literal(PROTOCOL_VERSION),
-  qualification: z.object({
+  qualification: z.union([z.object({
     sourceCommit: z.string().regex(/^[a-f0-9]{40}$/), evidenceSha256: hex,
     checks: z.array(z.enum(REQUIRED_CORE_GATES)).length(REQUIRED_CORE_GATES.length)
       .refine(v => new Set(v).size === REQUIRED_CORE_GATES.length),
-  }).strict(),
+  }).strict(), centralQualificationSchema]),
 }).strict().superRefine((r, ctx) => {
   const p = r.package;
   if (p.file !== `codex-package-${p.target}.tar.gz` ||
@@ -49,11 +59,13 @@ export const channelReleaseSchema = z.object({
     ctx.addIssue({ code: "custom", message: "Invalid complete platform payload" });
 });
 export const channelPayloadSchema = z.object({
-  schema: z.literal("synora.core-channel.v1"), adapter: z.literal(CORE_CHANNEL_ADAPTER),
+  schema: z.enum(["synora.core-channel.v1", "synora.core-channel.v2"]), adapter: z.literal(CORE_CHANNEL_ADAPTER),
   sequence: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   issuedAt: z.number().int().nonnegative(), expiresAt: z.number().int().positive(),
   releases: z.array(channelReleaseSchema).max(48),
 }).strict().superRefine((p, ctx) => {
+  if (p.schema === "synora.core-channel.v1" && p.releases.some(r => "policy" in r.qualification))
+    ctx.addIssue({ code: "custom", message: "Central qualification requires the v2 channel" });
   if (p.expiresAt <= p.issuedAt || p.expiresAt - p.issuedAt > MAX_LIFETIME)
     ctx.addIssue({ code: "custom", message: "Invalid catalog lifetime" });
   const ids = p.releases.map(r => `${r.package.target}/${r.package.version}`);

@@ -35,7 +35,7 @@ export async function updaterFixture(root: string, broken = false) {
         pathDir: "codex-path",
         resourcesDir: "codex-resources",
       }),
-      [entrypoint]: `#!/usr/bin/env node\nif(process.argv.includes('--version')){console.log('codex-cli ${version}');process.exit(0);}require('node:readline').createInterface({input:process.stdin}).on('line',l=>{const q=JSON.parse(l);if(q.method==='initialize')console.log(JSON.stringify({id:q.id,result:${broken && version === "0.153.5" ? "{}" : "{userAgent:'fixture',platformFamily:'unix',platformOs:'linux',codexHome:process.env.CODEX_HOME}"}}));});\n`,
+      [entrypoint]: `#!/usr/bin/env node\nif(process.argv.includes('--version')){console.log('codex-cli ${version}');process.exit(0);}require('node:readline').createInterface({input:process.stdin}).on('line',l=>{const q=JSON.parse(l);if(q.method==='initialize')console.log(JSON.stringify({id:q.id,result:${broken && version === "0.153.5" ? "{}" : "{userAgent:'fixture',platformFamily:'unix',platformOs:'linux',codexHome:process.env.CODEX_HOME}"}}));if(q.method==='config/read')console.log(JSON.stringify({id:q.id,result:{config:{},origins:{},layers:null}}));if(q.method==='thread/list')console.log(JSON.stringify({id:q.id,result:{data:[],nextCursor:null,backwardsCursor:null}}));});\n`,
     };
     for (const [name, data] of Object.entries(values)) {
       await writeFile(join(directory, name), data, { mode: 0o700 });

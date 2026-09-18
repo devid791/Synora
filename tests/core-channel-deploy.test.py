@@ -28,6 +28,19 @@ class DeployTests(unittest.TestCase):
     def test_read(self):
         self.assertEqual(self.call('read'), self.old)
 
+    def test_v2_is_independent_and_cannot_replace_legacy(self):
+        current = self.root / 'stable-v2.json'
+        current.write_bytes(self.old)
+        data = json.dumps(dict(keyId='test', payload='v2', signature='test')).encode()
+        digest = hashlib.sha256(data).hexdigest()
+        self.call('publish-v2 ' + hashlib.sha256(self.old).hexdigest() + ' ' + digest, data)
+        self.assertEqual(self.call('read-v2'), data)
+        self.assertEqual(self.call('read'), self.old)
+
+    def test_v2_requires_explicit_provisioning(self):
+        with self.assertRaises(ValueError):
+            self.call('read-v2')
+
     def test_atomic_publish(self):
         data = json.dumps(dict(keyId='test', payload='new', signature='test')).encode()
         digest = hashlib.sha256(data).hexdigest()

@@ -13,9 +13,11 @@ assert.ok(runner, "Runner-owned temporary directory required");
 const rel = relative(resolve(runner), process.cwd());
 assert.ok(rel && !isAbsolute(rel) && !rel.startsWith(".."), "Refusing a non-temporary source checkout");
 const version = process.argv[2]; compareCoreVersions(version, version);
-const key = `${process.platform}-${process.arch}`;
+const inventoryOnly = process.argv[3] === "--inventory-only";
+const key = inventoryOnly ? process.argv[4] : `${process.platform}-${process.arch}`;
 const lock = JSON.parse(await readFile("docs/core-runtime-lock.json", "utf8"));
-const previous = lock.targets[key]; assert.ok(previous, "Unsupported native platform");
+assert.ok(key && Object.hasOwn(lock.targets, key), "Unsupported platform");
+const previous = lock.targets[key];
 const response = await fetch(`https://api.github.com/repos/openai/codex/releases/tags/rust-v${version}`, {
   // The workflow's short-lived read-only token avoids shared-IP anonymous rate
   // limits. It is never attached to asset downloads or followed across redirects.
@@ -90,6 +92,12 @@ await list({ file: archive, strict: true, onReadEntry(entry) {
 assert.deepEqual(failures, []);
 const spec: CorePackage = { version, target: previous.target, file: previous.file, size, sha256: asset.digest.slice(7), files };
 await installCore(archive, resolve("out/core-channel-runtime"), spec);
+if (inventoryOnly) {
+  // Cross-platform inventory verification does not execute or claim native QA.
+  await writeFile(`out/core-inventory-${key}.json`, JSON.stringify(spec, null, 2) + "\n", { flag: "wx" });
+  console.log(JSON.stringify({ version, target: spec.target, status: "official-inventory-verified-not-native-tested" }));
+  process.exit(0);
+}
 // Pin only this native runner's candidate. These generated changes are never
 // committed or shipped to users; all test processes see the exact candidate.
 const payloads = JSON.parse(await readFile("docs/core-runtime-payloads.json", "utf8"));

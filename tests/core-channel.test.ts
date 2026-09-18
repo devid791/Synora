@@ -7,6 +7,7 @@ import { join } from "node:path";
 import {
   CoreChannel, CORE_CHANNEL_ADAPTER, CORE_CHANNEL_KEY_ID, CORE_CHANNEL_URL,
   verifyCoreChannel, channelPayloadSchema, type CoreChannelPayload,
+  CENTRAL_CORE_GATES, CENTRAL_CORE_POLICY,
 } from "../src/engine/core-channel";
 import { corePackage } from "../src/engine/core-runtime";
 import { REQUIRED_CORE_GATES } from "../src/engine/qualified-core";
@@ -174,4 +175,26 @@ test("authorization expiring during local probe cannot activate a downloaded can
   await updater.check();
   await assert.rejects(updater.install("0.153.5", { idle() {}, async pause() {}, resume() {}, state: () => ({}), restore() {} }), /authorization expired/);
   assert.equal(updater.selection().version, "0.153.4");
+});
+
+for (const failProbe of [false, true]) test(`v2 central authorization still requires local activation (failure=${failProbe})`, async t => {
+  const f = await fixture(t), packages = await updaterFixture(f.root);
+  const release = packages.releases.get("0.153.5")!.release;
+  const central = { ...release, qualification: { ...release.qualification,
+    policy:CENTRAL_CORE_POLICY, testedTarget:"x86_64-unknown-linux-musl", localActivation:"required", checks:[...CENTRAL_CORE_GATES] } };
+  f.set(signed({...payload(),schema:"synora.core-channel.v2",releases:[central]}));
+  let probes=0;
+  const notices:string[]=[];
+  const updater = new CoreUpdater(f.root, {...packages.options,lookup:undefined,channel:f.channel,
+    fetch:(async()=>{throw Error("Client must not query GitHub before the signed channel");}) as typeof fetch,
+    notify:m=>notices.push(m),
+    probe:async()=>{probes++;if(failProbe) throw Error("Native compatibility failed");}});
+  t.after(()=>updater.dispose());
+  await updater.check(); await updater.check();
+  assert.equal(notices.length,1);
+  assert.equal(updater.snapshot().eligibleVersion,"0.153.5");
+  const install=updater.install("0.153.5",{idle(){},async pause(){},resume(){},state:()=>({}),restore(){}});
+  if(failProbe) await assert.rejects(install,/Native compatibility failed/); else await install;
+  assert.equal(probes,1);
+  assert.equal(updater.selection().version,failProbe?"0.153.4":"0.153.5");
 });

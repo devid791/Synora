@@ -14,16 +14,18 @@ ROOT = Path('/var/lib/synora-core-publisher/channel')
 
 
 def handle(root, command, source, destination):
-    current = root / 'stable-v1.json'
+    # Fixed names only. Legacy clients retain their original channel untouched.
+    v2 = command == 'read-v2' or command.startswith('publish-v2 ')
+    current = root / ('stable-v2.json' if v2 else 'stable-v1.json')
     if current.is_symlink() or not current.is_file():
         raise ValueError('Catalog must be provisioned first')
-    if command == 'read':
+    if command in ('read', 'read-v2'):
         data = current.read_bytes()
         if len(data) > LIMIT:
             raise ValueError('Oversized catalog')
         destination.write(data)
         return
-    match = re.fullmatch(r'publish ([a-f0-9]{64}) ([a-f0-9]{64})', command)
+    match = re.fullmatch(r'publish(?:-v2)? ([a-f0-9]{64}) ([a-f0-9]{64})', command)
     if not match:
         raise ValueError('Unsupported deployment operation')
     data = source.read(LIMIT + 1)

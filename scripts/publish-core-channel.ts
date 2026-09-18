@@ -24,7 +24,7 @@ try {
   const previous = join(temporary, "previous.json");
   // No implicit bootstrap/reset. Install the initial signed empty catalog once
   // during channel provisioning. Missing/inaccessible current catalog fails.
-  const downloaded = await run("ssh", [...sshOptions, remote, "read"], { timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+  const downloaded = await run("ssh", [...sshOptions, remote, "read-v2"], { timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
   await writeFile(previous, downloaded.stdout, { flag: "wx", mode: 0o600 });
   verifyCoreChannel(JSON.parse(await readFile(previous, "utf8")));
   const output = join(temporary, "next.json");
@@ -36,7 +36,7 @@ try {
   // Forced command: bounded catalog only; compare-and-swap prevents lost writes.
   const hash = coreEvidenceHash(bytes);
   await new Promise<void>((done, reject) => {
-    const child = spawn("ssh", [...sshOptions, remote, `publish ${coreEvidenceHash(Buffer.from(downloaded.stdout))} ${hash}`],
+    const child = spawn("ssh", [...sshOptions, remote, `publish-v2 ${coreEvidenceHash(Buffer.from(downloaded.stdout))} ${hash}`],
       { stdio: ["pipe", "ignore", "pipe"], timeout: 30000 });
     let error = "";
     child.stderr.on("data", b => { if (error.length < 8192) error += b; });
@@ -44,7 +44,7 @@ try {
     child.on("close", code => code === 0 ? done() : reject(Error(`Catalog publication failed: ${error}`)));
     child.stdin.end(bytes);
   });
-  const check = await run("ssh", [...sshOptions, remote, "read"], { timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+  const check = await run("ssh", [...sshOptions, remote, "read-v2"], { timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
   assert.equal(coreEvidenceHash(Buffer.from(check.stdout)), hash);
   console.log("Signed Core update channel published and read back successfully.");
 } finally {

@@ -10,7 +10,7 @@ assert.ok(output && keyFile, "Usage: SYNORA_CHANNEL_SIGNING_KEY_FILE=PRIVATE_KEY
 const key = await readFile(keyFile);
 assert.equal(createPublicKey(key).export({ type: "spki", format: "pem" }).toString().trim(), CORE_CHANNEL_PUBLIC_KEY.trim());
 const now = Date.now();
-const payload = channelPayloadSchema.parse({ schema: "synora.core-channel.v1", adapter: CORE_CHANNEL_ADAPTER,
+const payload = channelPayloadSchema.parse({ schema: "synora.core-channel.v2", adapter: CORE_CHANNEL_ADAPTER,
   sequence: now, issuedAt: now, expiresAt: now + 7 * 86400000, releases: [] });
 const bytes = Buffer.from(JSON.stringify(payload));
 const envelope = { keyId: CORE_CHANNEL_KEY_ID, payload: bytes.toString("base64"), signature: sign(null, bytes, key).toString("base64") };

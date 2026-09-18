@@ -39,7 +39,7 @@ try {
   mkdirSync(artifacts, {recursive:true});
   // Private, expiring GitLab artifacts retain the failed step and Playwright trace.
   // Never collect Core homes, profile databases, environment files or credentials.
-  for(const relative of ['out/core-channel-qualification','test-results']) {
+  for(const relative of ['out/core-channel-qualification','test-results','out/live-evidence']) {
     const source = join(checkout,relative);
     if(existsSync(source)) cpSync(source, join(artifacts,relative), {recursive:true,
       filter: path => !path.includes('probe-home') && !path.includes('.codex')});

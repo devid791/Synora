@@ -10,6 +10,7 @@ import {
   prepareCompatibleProcess,
 } from "../src/engine/compatible-provider";
 import { sha256File } from "../src/engine/core-runtime";
+import { BUNDLED_CORE_VERSION } from "../src/engine/core-runtime";
 import type { EngineBinding } from "../src/shared/contracts";
 
 test("Compatible endpoint adapter with original Core: full tools, actual command/result, cold resume and quiet-stream cancellation", async () => {
@@ -22,6 +23,7 @@ test("Compatible endpoint adapter with original Core: full tools, actual command
       {
         provider: "synora_compatible",
         executable: f.wrapper,
+        runtime: { version: BUNDLED_CORE_VERSION, executable: async () => f.wrapper },
         stateDirectory: join(f.directory, "synora-compatible"),
         endpoint: f.endpoint,
         model: "fixture/compatible-model",
