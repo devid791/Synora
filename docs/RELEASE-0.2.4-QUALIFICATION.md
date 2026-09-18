@@ -1,7 +1,8 @@
 # Synora 0.2.4 — Core update policy migration
 
-Candidate release. Package publication and native installation must be recorded
-separately; source changes do not update already installed clients.
+Windows, Linux and local web preview published on 2026-09-18. macOS 0.2.4 remains
+pending. Package publication and native installation are separate: source
+changes do not update already installed clients.
 
 ## Changes
 
@@ -33,3 +34,48 @@ authorized candidate is downloaded and locally activated.
 
 Initial source regression: 788 tests passed, zero failed/skipped, and eight atomic
 deployment tests passed. Final package/native results are recorded after building.
+
+## Measured acceptance — 2026-09-18
+
+Application packages were built from `ecacac057ad6c9d14d86df24b9f473b81dc79eef`.
+
+- GitLab pipelines 16988 (Linux), 16989 (macOS target), and 16990 (Windows
+  target) passed central compatibility and published Core 0.155.0 independently
+  to the signed v2 catalog. The macOS/Windows target jobs execute the real Linux
+  runtime contract and verify official target archives; they are not native UI
+  tests. None required a personal Mac to be online.
+- Packaged Linux desktop: real startup discovery, download, native activation of
+  0.155.0, retention of the previous 0.154.0 and restart on 0.155.0 passed.
+- Packaged Windows desktop on Axiom Builder's interactive desktop: the same
+  startup/activation/restart test passed (one expected, zero skipped, unexpected
+  or flaky tests). No Settings update button was invoked in either test.
+- Relocated web archive: all 750 manifest entries verified; real file read/write,
+  native PTY, bundled browser click/text input, session boundary, Core startup
+  and automatic signed update to 0.155.0 passed.
+- Native macOS 0.2.4 build/signing/installation is still pending access to the Mac.
+  Its previous 0.2.3 download must remain explicitly labeled; do not present it as
+  supporting the new central v2 policy before the one-time app migration.
+
+These are scoped update acceptance tests, not a fresh exhaustive certification
+of every model, plugin, sandbox grant or operating-system release. Desktop test
+reports and web acceptance evidence are retained under `out/release-0.2.4/evidence`
+on the release host; no private test profiles are included in published assets.
+
+## Publication
+
+The exact tested Windows/Linux/web packages are on
+https://github.com/devid791/Synora/releases/tag/v0.2.4 and linked from
+https://synora-ai.org/#downloads. The site preserves the macOS 0.2.3 download
+and labels the difference; download counts are fetched separately per release.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `Synora-0.2.4-linux-amd64.deb` | `38d0e5c5f6392dbdc01398ab89cacbedfe515cb6eec703794a54e74ff93843aa` |
+| `Synora-0.2.4-windows-x64.exe` | `60ef40088321a1a10d1eec2c3202572ad9da55ab5fd0ea4ead59951792197d6c` |
+| `Synora-0.2.4-web-linux-x64.tar.gz` | `a693b49493e8d798542351afd1b61d5426908d67e0279cfad813fd279e868312` |
+
+GitHub asset digests/sizes and VPS file hashes match these original packages.
+Public site notes, manifests and counters match the local deployment; downloads
+remain read-only (POST returns 405). Core update signatures and freshness were
+verified using the application's pinned key. No GitHub qualification workflow
+or personal computer is required by the active six-hour GitLab Core schedules.
