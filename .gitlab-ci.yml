@@ -13,6 +13,13 @@ workflow:
         - native/**/*
         - package.json
         - package-lock.json
+        - scripts/build*.mjs
+        - scripts/prepare*.mjs
+        - scripts/package*.mjs
+        - scripts/after-pack.mjs
+        - scripts/brand.mjs
+        - scripts/download-core.mjs
+        - docs/core-runtime*.json
         - releases/*.md
       variables:
         APP_BUILD: "1"

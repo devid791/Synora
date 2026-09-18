@@ -16,6 +16,11 @@ const pkg=JSON.parse(readFileSync('package.json','utf8'));
 const version=pkg.version;
 assert.match(version,/^\d+\.\d+\.\d+$/);
 const notes=readFileSync(`releases/${version}.md`,'utf8');
+const releases=await fetch('https://synora-ai.org/downloads/releases/latest.json',{cache:'no-store',signal:AbortSignal.timeout(15000)});
+assert.ok(releases.ok,'Cannot check already published versions');
+const current=(await releases.json()).platforms[platform];
+assert.ok(!current||version.localeCompare(current.version,undefined,{numeric:true})>0,
+  `Version ${version} is already published for ${platform}; increment package.json/package-lock.json and add release notes before an application change`);
 const channel=await fetch('https://synora-ai.org/updates/core/stable-v2.json');
 assert.ok(channel.ok,'Core channel unavailable');
 // Use the same signed channel validator as clients to choose a native activation test.

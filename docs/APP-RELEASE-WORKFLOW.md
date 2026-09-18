@@ -39,3 +39,18 @@ Checks: `node --test tests/app-release.test.mjs` and
 the direct public URL, byte count, SHA-256 and pipeline ID in its artifact.
 Qualification scope and known issues remain in release notes; release branding
 does not assert that every external account or OS permission was tested.
+
+## Verified publication on 2026-09-18
+
+Pipeline 17002 successfully published all four 0.2.5 platforms through GitLab:
+jobs 32023 (Linux), 32024 (Web), 32025 (Windows), 32026 (Mac). All four complete
+downloads were read back from the public website and matched their expected
+byte counts and SHA-256 values. Browser checks verified the versioned direct
+links and mobile layout. Public POST is 405; private deployment files are 404.
+
+The full future native build chain has been linted, not yet exercised as a new
+release. Linux and Windows runners are online. The registered Mac runner has
+never connected; the Mac Mini at the known address was unreachable. A dedicated
+Mac worker with the existing signing identity is still required for future Mac
+builds. This does not affect publication of the already qualified 0.2.5 Mac ZIP
+or block other platforms. Do not describe future Mac build automation as tested.

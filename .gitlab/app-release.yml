@@ -21,9 +21,14 @@
   environment:
     name: app-release-publisher
   timeout: 45m
+  retry:
+    max: 2
+    when: [runner_system_failure, api_failure, script_failure]
   variables:
     GIT_DEPTH: "0"
   script:
+    - node --test tests/app-release.test.mjs
+    - python3 tests/app-release-deploy.test.py
     - node scripts/gitlab-app-publish.mjs
   artifacts:
     when: always
