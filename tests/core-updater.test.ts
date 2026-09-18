@@ -394,6 +394,47 @@ test("corrupt archive and failed initialize keep prior binary and data active", 
   await assert.rejects(other.install("0.153.5", f.hooks), /integrity mismatch/);
   assert.equal(other.snapshot().currentVersion, "0.153.4");
 });
+test("snapshot excludes regenerated arg0 aliases, retains history and supports rollback", async (t) => {
+  const f = await setup(t);
+  for (const name of ["app-server", "accounts"]) {
+    const temporary = join(f.home, name, "fixture/tmp/arg0/codex-session");
+    await mkdir(temporary, {recursive:true});
+    await symlink(join(f.home, "provider-credentials/private"), join(temporary, "apply_patch"));
+    await writeFile(join(f.home, name, "fixture/tmp/keep.json"), "persistent-neighbor");
+  }
+  const status = await f.updater.install("0.153.5", f.hooks);
+  for (const name of ["app-server", "accounts"]) {
+    const saved = join(f.home, "runtime-updates/generations", status.recoveryId!, name, "fixture/tmp");
+    assert.deepEqual(await readdir(saved), ["keep.json"]);
+    assert.equal(await readFile(join(saved,"keep.json"),"utf8"), "persistent-neighbor");
+    assert.deepEqual(await readdir(join(f.home,name,"fixture/tmp/arg0/codex-session")), ["apply_patch"]);
+  }
+  await f.updater.rollback(status.recoveryId!, f.hooks);
+  assert.equal(await readFile(join(f.home,"app-server/fixture/history.json"),"utf8"), "old-thread-and-session");
+});
+test("snapshot still rejects a symlink at the arg0 directory boundary", async (t) => {
+  const f = await setup(t);
+  await mkdir(join(f.home,"app-server/fixture/tmp"));
+  await symlink(join(f.home,"provider-credentials"),join(f.home,"app-server/fixture/tmp/arg0"), "dir");
+  await assert.rejects(f.updater.install("0.153.5", f.hooks), /symbolic link/);
+});
+test("new snapshot revision retries a legacy activation failure once, but respects rollback", async (t) => {
+  for (const rollback of [false,true]) {
+    const f=await setup(t);
+    await mkdir(join(f.home,"runtime-updates"),{recursive:true});
+    await writeFile(join(f.home,"runtime-updates/active.json"),JSON.stringify({
+      active:{version:"0.153.4",generation:null},previous:null,recoveryId:null,
+      automatic:true,latestVersion:null,checkedAt:null,checks:[],failedAutomaticVersion:"0.153.5",
+      ...(rollback?{message:"Restored App Server 0.153.4 and its saved session state."}:{})
+    }));
+    let attempts=0;
+    const updater=new CoreUpdater(f.home,{...f.options,initialDelayMs:1,intervalMs:10,
+      archive:async()=>{attempts++;throw Error("controlled");}});
+    updater.start(f.hooks);
+    await new Promise(r=>setTimeout(r,150));await updater.dispose();
+    assert.equal(attempts,rollback?0:1);
+  }
+});
 test("snapshot refuses external symlinks; recovery refuses a corrupt backup", async (t) => {
   const f = await setup(t);
   await symlink(

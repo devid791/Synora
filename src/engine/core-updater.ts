@@ -60,6 +60,8 @@ const stateSchema = z
     recoveryId: z.string().uuid().nullable(),
     automatic: z.boolean(),
     failedAutomaticVersion: z.string().nullable().optional(),
+    failedAutomaticRevision: z.string().nullable().optional(),
+    failedAutomaticKind: z.enum(["activation", "rollback"]).optional(),
     latestVersion: z.string().nullable(),
     checkedAt: z.number().nullable(),
     checks: z.array(z.string()).default([]),
@@ -89,6 +91,7 @@ const baseline = (version = BUNDLED_CORE_VERSION): State => ({
   checks: [],
 });
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const AUTOMATIC_UPDATE_REVISION = "snapshot-arg0-v1";
 async function atomicJSON(path: string, value: unknown) {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${randomUUID()}.tmp`;
@@ -115,6 +118,11 @@ async function dataTree(source: string, destination?: string) {
     if (info.isSymbolicLink())
       throw Error(`Recovery snapshot refuses a symbolic link: ${relative}`);
     if (info.isDirectory()) {
+      // Core regenerates these executable aliases on every launch. They may
+      // point into the old runtime and are not history/configuration. Never
+      // traverse or copy them; retain the original home unchanged. A link at
+      // the arg0 directory itself is still rejected by the check above.
+      if (/^[^/]+\/tmp\/arg0$/.test(relative)) return;
       if (destination)
         await mkdir(join(destination, relative), {
           recursive: true,
@@ -403,7 +411,11 @@ export class CoreUpdater {
         this.state.automatic &&
         this.automaticHooks &&
         version &&
-        version !== this.state.failedAutomaticVersion &&
+        !(version === this.state.failedAutomaticVersion && (
+          this.state.failedAutomaticRevision === AUTOMATIC_UPDATE_REVISION ||
+          this.state.failedAutomaticKind === "rollback" ||
+          this.state.message?.startsWith("Restored App Server ")
+        )) &&
         !this.busy &&
         !this.fault &&
         !this.options.disabledReason
@@ -421,7 +433,8 @@ export class CoreUpdater {
         try {
           await install;
         } catch (e) {
-          await this.save({ ...this.state, failedAutomaticVersion: version });
+          await this.save({ ...this.state, failedAutomaticVersion: version,
+            failedAutomaticRevision: AUTOMATIC_UPDATE_REVISION, failedAutomaticKind: "activation" });
           this.options.notify?.(
             `Automatic Core update failed: ${errorText(e)}. Check the retained runtime and recovery status; no automatic retry loop.`,
           );
@@ -713,6 +726,7 @@ export class CoreUpdater {
       ...this.state,
       active: { version, generation: id },
       failedAutomaticVersion: null,
+      failedAutomaticRevision: null,
       previous: this.state.active,
       recoveryId: id,
       checks: this.checks,
@@ -777,6 +791,8 @@ export class CoreUpdater {
       ...this.state,
       active: recovery.previous,
       failedAutomaticVersion: this.state.active.version,
+      failedAutomaticRevision: AUTOMATIC_UPDATE_REVISION,
+      failedAutomaticKind: "rollback",
       previous: null,
       recoveryId: null,
       restoreState: recovery.state,
