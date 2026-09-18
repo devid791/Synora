@@ -1,9 +1,22 @@
+include:
+  - local: .gitlab/app-release.yml
 # Core: central compatibility + mandatory local activation, no personal Macs.
 # Full native app QA is a separate, explicitly selected lane.
 workflow:
   rules:
     - if: '$CI_SERVER_HOST != "gitlab.synapsecorp.org" || $CI_PROJECT_PATH != "davide/synora" || $CI_COMMIT_REF_PROTECTED != "true"'
       when: never
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+      changes:
+        - src/**/*
+        - public/**/*
+        - native/**/*
+        - package.json
+        - package-lock.json
+        - releases/*.md
+      variables:
+        APP_BUILD: "1"
+    - if: '$APP_BUILD == "1" || $APP_RELEASE == "1"'
     - if: '$CI_PIPELINE_SOURCE != "schedule" && $CI_PIPELINE_SOURCE != "web" && $CI_PIPELINE_SOURCE != "api"'
       when: never
     - if: '$CORE_PLATFORM == "linux"'
@@ -29,6 +42,10 @@ variables:
 
 discover:
   stage: discover
+  rules:
+    - if: '$APP_BUILD == "1" || $APP_RELEASE == "1"'
+      when: never
+    - when: on_success
   tags: [synora-gitlab-publisher]
   timeout: 5m
   script:
@@ -45,6 +62,8 @@ qualify-core:
   resource_group: core-server-$CORE_PLATFORM
   timeout: 30m
   rules:
+    - if: '$APP_BUILD == "1" || $APP_RELEASE == "1"'
+      when: never
     - if: '$CORE_FULL_APP_QA == "1"'
       when: never
     - when: on_success
@@ -63,6 +82,8 @@ qualify-app-native:
   resource_group: app-native-$CORE_PLATFORM
   timeout: 90m
   rules:
+    - if: '$APP_BUILD == "1" || $APP_RELEASE == "1"'
+      when: never
     - if: '$CORE_FULL_APP_QA == "1"'
   script:
     - node scripts/gitlab-core-qa.mjs
@@ -79,6 +100,8 @@ publish:
     - qualify-core
   tags: [synora-gitlab-publisher]
   rules:
+    - if: '$APP_BUILD == "1" || $APP_RELEASE == "1"'
+      when: never
     - if: '$CORE_FULL_APP_QA == "1"'
       when: never
     - when: on_success

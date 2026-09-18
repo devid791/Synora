@@ -1,0 +1,83 @@
+# Each platform has its own needs chain. An offline Mac cannot hold Linux/Win/Web.
+.app-build:
+  stage: qualify
+  timeout: 2h
+  resource_group: app-build-$APP_PLATFORM
+  rules:
+    - if: '$APP_BUILD == "1"'
+  script:
+    - npm ci
+    - node --import tsx scripts/gitlab-app-build.mjs
+  artifacts:
+    when: on_success
+    access: maintainer
+    paths: [out/app-release/entry.json]
+    expire_in: 14 days
+
+.app-publish:
+  stage: publish
+  tags: [synora-gitlab-publisher]
+  resource_group: app-release-$APP_PLATFORM
+  environment:
+    name: app-release-publisher
+  timeout: 45m
+  variables:
+    GIT_DEPTH: "0"
+  script:
+    - node scripts/gitlab-app-publish.mjs
+  artifacts:
+    when: always
+    paths: [out/app-publication/]
+    expire_in: 90 days
+
+app-build-linux:
+  extends: .app-build
+  tags: [synora-gitlab-linux-x64]
+  variables: {APP_PLATFORM: linux}
+app-build-web:
+  extends: .app-build
+  tags: [synora-gitlab-linux-x64]
+  variables: {APP_PLATFORM: web}
+app-build-win:
+  extends: .app-build
+  tags: [synora-gitlab-windows-x64]
+  variables: {APP_PLATFORM: win}
+app-build-mac:
+  extends: .app-build
+  tags: [synora-gitlab-macos-arm64]
+  variables: {APP_PLATFORM: mac}
+
+app-publish-linux:
+  extends: .app-publish
+  variables: {APP_PLATFORM: linux}
+  needs: [app-build-linux]
+  rules:
+    - if: '$APP_BUILD == "1"'
+app-publish-web:
+  extends: .app-publish
+  variables: {APP_PLATFORM: web}
+  needs: [app-build-web]
+  rules:
+    - if: '$APP_BUILD == "1"'
+app-publish-win:
+  extends: .app-publish
+  variables: {APP_PLATFORM: win}
+  needs: [app-build-win]
+  rules:
+    - if: '$APP_BUILD == "1"'
+app-publish-mac:
+  extends: .app-publish
+  variables: {APP_PLATFORM: mac}
+  needs: [app-build-mac]
+  rules:
+    - if: '$APP_BUILD == "1"'
+
+# Recovery/migration lane for already tested immutable packages in GitLab registry.
+app-publish-qualified:
+  extends: .app-publish
+  needs: []
+  parallel:
+    matrix:
+      - APP_PLATFORM: [linux, web, win, mac]
+  rules:
+    - if: '$APP_RELEASE == "1" && $APP_BUILD != "1"'

@@ -1,5 +1,5 @@
 import { test, expect, _electron } from "@playwright/test";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm, mkdir, writeFile, symlink, readFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BUNDLED_CORE_VERSION } from "../src/engine/core-runtime";
@@ -14,6 +14,19 @@ test("packaged app updates Core on startup without a settings click, then restar
   const root = await mkdtemp(
     join(await realpath(tmpdir()), "synora-startup-update-"),
   );
+  // Reproduce a used Core home and a previous automatic activation failure.
+  const aliasDir=join(root,"app-server/update-fixture/tmp/arg0/codex-session");
+  await mkdir(aliasDir,{recursive:true});
+  const marker=join(root,"app-server/update-fixture/history-marker.json");
+  await writeFile(marker,'retained-history');
+  // Windows symlink creation requires a separate OS grant, not needed here.
+  if(process.platform==='win32')await writeFile(join(aliasDir,'apply_patch.cmd'),'temporary-wrapper');
+  else await symlink(marker,join(aliasDir,'apply_patch'));
+  await mkdir(join(root,"runtime-updates"));
+  await writeFile(join(root,"runtime-updates/active.json"),JSON.stringify({
+    active:{version:BUNDLED_CORE_VERSION,generation:null},previous:null,recoveryId:null,
+    automatic:true,latestVersion:null,checkedAt:null,checks:[],failedAutomaticVersion:candidate
+  }));
   const launch = () =>
     _electron.launch({
       executablePath: process.env.SYNORA_TEST_EXECUTABLE,
@@ -53,6 +66,11 @@ test("packaged app updates Core on startup without a settings click, then restar
     expect(activated.ok && activated.value.previousVersion).toBe(
       BUNDLED_CORE_VERSION,
     );
+    expect(await readFile(marker,'utf8')).toBe('retained-history');
+    if(!activated.ok || !activated.value.recoveryId)throw Error('Missing recovery receipt');
+    const saved=join(root,"runtime-updates/generations",activated.value.recoveryId,"app-server/update-fixture");
+    expect(await readFile(join(saved,'history-marker.json'),'utf8')).toBe('retained-history');
+    await expect(access(join(saved,'tmp/arg0'))).rejects.toThrow();
     expect(
       activated.ok &&
         activated.value.checks.some((c) => c.includes("settings and history")),
